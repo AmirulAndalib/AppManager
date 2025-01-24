@@ -17,6 +17,7 @@
 % po4a: command -pagecolor {}
 % po4a: command *colorbox {}{_}
 
+\usepackage[margin=1in]{geometry}
 \usepackage[T1]{fontenc}
 \usepackage{mathpazo} % Palatino
 \usepackage[utf8]{inputenc}
@@ -41,7 +42,7 @@
 \setcounter{secnumdepth}{3}
 
 % Import localised keywords
-\input{keywords.tex}
+\input{keywords}
 
 % -------------------
 % Alert environments
@@ -147,10 +148,26 @@
 \definecolor{AMVeryDarkRed}{HTML}{4F1C14}
 \definecolor{AMVividOrange}{HTML}{FF8017}
 \ifdefined\Vanilla\else
+    \definecolor{uninstalled-day}{HTML}{FF0000B3}
+    \definecolor{uninstalled-night}{HTML}{790D0D}
+    \definecolor{disabled-day}{HTML}{FF8A80}
+    \definecolor{disabled-night}{HTML}{4F1C14BF}
+    \definecolor{force-stopped}{HTML}{09868B}
+    \definecolor{tracker-day}{HTML}{FF8017}
+    \definecolor{tracker-night}{HTML}{FF801780}
+    % For compatibility only
     \definecolor{AMVeryDarkOrange}{HTML}{FF801780}
 \fi
 \ifdefined\Vanilla
-    % We have to define Vanilla colour letter because Pandoc only looks at the first colour
+    % We have to define Vanilla colour later because Pandoc only looks at the first colour
+    \definecolor{uninstalled-day}{HTML}{FF0000}
+    \definecolor{uninstalled-night}{HTML}{790D0D}
+    \definecolor{disabled-day}{HTML}{FF8A80}
+    \definecolor{disabled-night}{HTML}{4F1C14}
+    \definecolor{force-stopped}{HTML}{09868B}
+    \definecolor{tracker-day}{HTML}{FF8017}
+    \definecolor{tracker-night}{HTML}{FF8017}
+    % For compatibility only
     \definecolor{AMVeryDarkOrange}{HTML}{FF8017}
 \fi
 \definecolor{AMSoftMagenta}{HTML}{EA80FC}
@@ -174,18 +191,18 @@
 \author{Muntashir Al-Islam}
 
 % Load variables
-\input{transient.tex}
+\input{transient}
 
 \begin{document}
-    \input{titlepage.tex}
+    \input{titlepage}
     \ifdefined\HCode
     % Don't display table of contents for tex4ht
     \else
         \tableofcontents
     \fi
-    \input{intro/main.tex}
-    \input{pages/main.tex}
-    \input{guide/main.tex}
-    \input{faq/main.tex}
-    \input{appendices/main.tex}
+    \input{intro/main}
+    \input{pages/main}
+    \input{guide/main}
+    \input{faq/main}
+    \input{appendices/main}
 \end{document}

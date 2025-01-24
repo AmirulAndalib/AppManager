@@ -486,7 +486,7 @@ public interface IPackageManager extends IInterface {
     @RequiresApi(Build.VERSION_CODES.R)
     InstallSourceInfo getInstallSourceInfo(String packageName) throws RemoteException;
 
-    @RequiresApi(34)
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     InstallSourceInfo getInstallSourceInfo(String packageName, int userId) throws RemoteException;
 
     /**
@@ -544,14 +544,14 @@ public interface IPackageManager extends IInterface {
                                                      int userId) throws RemoteException;
 
     /**
-     * @deprecated Removed in API 28 (Android P)
+     * @deprecated Replaced in API 28 (Android P) by {@link #setPackagesSuspendedAsUser(String[], boolean, PersistableBundle, PersistableBundle, String, String, int)}
      */
     @Deprecated
     @RequiresApi(Build.VERSION_CODES.N)
     String[] setPackagesSuspendedAsUser(String[] packageNames, boolean suspended, int userId) throws RemoteException;
 
     /**
-     * @deprecated Removed in API 29 (Android Q)
+     * @deprecated Replaced in API 29 (Android Q) by {@link #setPackagesSuspendedAsUser(String[], boolean, PersistableBundle, PersistableBundle, SuspendDialogInfo, String, int)}
      */
     @Deprecated
     @RequiresApi(Build.VERSION_CODES.P)
@@ -559,10 +559,23 @@ public interface IPackageManager extends IInterface {
                                         PersistableBundle appExtras, PersistableBundle launcherExtras,
                                         String dialogMessage, String callingPackage, int userId) throws RemoteException;
 
+    /**
+     * @deprecated Replaced in API 34 r29 (Android U) by {@link #setPackagesSuspendedAsUser(String[], boolean, PersistableBundle, PersistableBundle, SuspendDialogInfo, int, String, int, int)}
+     */
+    @Deprecated
     @RequiresApi(Build.VERSION_CODES.Q)
     String[] setPackagesSuspendedAsUser(String[] packageNames, boolean suspended,
                                         PersistableBundle appExtras, PersistableBundle launcherExtras,
                                         SuspendDialogInfo dialogInfo, String callingPackage, int userId) throws RemoteException;
+
+    /**
+     * Introduced in API 34 r29
+     */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    String[] setPackagesSuspendedAsUser(String[] packageNames, boolean suspended,
+                                        PersistableBundle appExtras, PersistableBundle launcherExtras,
+                                        SuspendDialogInfo dialogInfo, int flags, String suspendingPackage,
+                                        int suspendingUserId, int targetUserId) throws RemoteException;
 
     @RequiresApi(Build.VERSION_CODES.N)
     boolean isPackageSuspendedForUser(String packageName, int userId) throws RemoteException;
@@ -655,7 +668,7 @@ public interface IPackageManager extends IInterface {
     /**
      * As per {@link android.content.pm.PackageManager#setComponentEnabledSetting}.
      */
-    @RequiresApi(34)
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     void setComponentEnabledSetting(ComponentName componentName, int newState, int flags, int userId, String callingPackage) throws RemoteException;
 
     /**
@@ -981,6 +994,10 @@ public interface IPackageManager extends IInterface {
     @RequiresApi(Build.VERSION_CODES.N)
     void dumpProfiles(String packageName) throws RemoteException;
 
+    /**
+     * @deprecated Removed in API 34 (Android 14)
+     */
+    @Deprecated
     void forceDexOpt(String packageName) throws RemoteException;
 
     /**

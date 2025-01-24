@@ -43,7 +43,7 @@ import java.util.List;
 import io.github.muntashirakon.AppManager.BaseActivity;
 import io.github.muntashirakon.AppManager.BuildConfig;
 import io.github.muntashirakon.AppManager.R;
-import io.github.muntashirakon.AppManager.apk.behavior.DexOptDialog;
+import io.github.muntashirakon.AppManager.apk.dexopt.DexOptDialog;
 import io.github.muntashirakon.AppManager.apk.list.ListExporter;
 import io.github.muntashirakon.AppManager.backup.dialog.BackupRestoreDialogFragment;
 import io.github.muntashirakon.AppManager.batchops.BatchOpsManager;
@@ -53,6 +53,7 @@ import io.github.muntashirakon.AppManager.changelog.ChangelogParser;
 import io.github.muntashirakon.AppManager.changelog.ChangelogRecyclerAdapter;
 import io.github.muntashirakon.AppManager.compat.NetworkPolicyManagerCompat;
 import io.github.muntashirakon.AppManager.debloat.DebloaterActivity;
+import io.github.muntashirakon.AppManager.filters.FinderActivity;
 import io.github.muntashirakon.AppManager.misc.AdvancedSearchView;
 import io.github.muntashirakon.AppManager.misc.HelpActivity;
 import io.github.muntashirakon.AppManager.misc.LabsActivity;
@@ -121,6 +122,26 @@ public class MainActivity extends BaseActivity implements AdvancedSearchView.OnQ
                 dialogFragment.show(getSupportFragmentManager(), RulesTypeSelectionDialogFragment.TAG);
             });
 
+    private final ActivityResultLauncher<String> mExportAppListCsv = registerForActivityResult(
+            new ActivityResultContracts.CreateDocument("text/csv"),
+            uri -> {
+                if (uri == null) {
+                    // Back button pressed.
+                    return;
+                }
+                mProgressIndicator.show();
+                viewModel.saveExportedAppList(ListExporter.EXPORT_TYPE_CSV, Paths.get(uri));
+            });
+    private final ActivityResultLauncher<String> mExportAppListJson = registerForActivityResult(
+            new ActivityResultContracts.CreateDocument("application/json"),
+            uri -> {
+                if (uri == null) {
+                    // Back button pressed.
+                    return;
+                }
+                mProgressIndicator.show();
+                viewModel.saveExportedAppList(ListExporter.EXPORT_TYPE_JSON, Paths.get(uri));
+            });
     private final ActivityResultLauncher<String> mExportAppListXml = registerForActivityResult(
             new ActivityResultContracts.CreateDocument("text/xml"),
             uri -> {
@@ -131,7 +152,6 @@ public class MainActivity extends BaseActivity implements AdvancedSearchView.OnQ
                 mProgressIndicator.show();
                 viewModel.saveExportedAppList(ListExporter.EXPORT_TYPE_XML, Paths.get(uri));
             });
-
     private final ActivityResultLauncher<String> mExportAppListMarkdown = registerForActivityResult(
             new ActivityResultContracts.CreateDocument("text/markdown"),
             uri -> {
@@ -194,7 +214,6 @@ public class MainActivity extends BaseActivity implements AdvancedSearchView.OnQ
 
         mAdapter = new MainRecyclerAdapter(MainActivity.this);
         mAdapter.setHasStableIds(true);
-        recyclerView.setHasFixedSize(true);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(mAdapter);
         mMultiSelectionView = findViewById(R.id.selection_view);
@@ -295,6 +314,9 @@ public class MainActivity extends BaseActivity implements AdvancedSearchView.OnQ
         } else if (id == R.id.action_one_click_ops) {
             Intent onClickOpsIntent = new Intent(this, OneClickOpsActivity.class);
             startActivity(onClickOpsIntent);
+        } else if (id == R.id.action_finder) {
+            Intent intent = new Intent(this, FinderActivity.class);
+            startActivity(intent);
         } else if (id == R.id.action_apk_updater) {
             try {
                 if (!getPackageManager().getApplicationInfo(PACKAGE_NAME_APK_UPDATER, 0).enabled)
@@ -404,24 +426,30 @@ public class MainActivity extends BaseActivity implements AdvancedSearchView.OnQ
             final String fileName = "app_manager_rules_export-" + DateUtils.formatDateTime(this, System.currentTimeMillis()) + ".am.tsv";
             mBatchExportRules.launch(fileName);
         } else if (id == R.id.action_export_app_list) {
-            List<Integer> exportTypes = Arrays.asList(ListExporter.EXPORT_TYPE_XML, ListExporter.EXPORT_TYPE_MARKDOWN);
+            List<Integer> exportTypes = Arrays.asList(ListExporter.EXPORT_TYPE_CSV,
+                    ListExporter.EXPORT_TYPE_JSON,
+                    ListExporter.EXPORT_TYPE_XML,
+                    ListExporter.EXPORT_TYPE_MARKDOWN);
             new SearchableSingleChoiceDialogBuilder<>(this, exportTypes, R.array.export_app_list_options)
                     .setTitle(R.string.export_app_list_select_format)
                     .setOnSingleChoiceClickListener((dialog, which, item1, isChecked) -> {
                         if (!isChecked) {
                             return;
                         }
+                        String filename = "app_manager_app_list-" + DateUtils.formatLongDateTime(this, System.currentTimeMillis()) + ".am";
                         switch (item1) {
-                            case ListExporter.EXPORT_TYPE_XML: {
-                                final String fileName = "app_manager_app_list-" + DateUtils.formatDateTime(this, System.currentTimeMillis()) + ".am.xml";
-                                mExportAppListXml.launch(fileName);
+                            case ListExporter.EXPORT_TYPE_CSV:
+                                mExportAppListCsv.launch(filename + ".csv");
                                 break;
-                            }
-                            case ListExporter.EXPORT_TYPE_MARKDOWN: {
-                                final String fileName = "app_manager_app_list-" + DateUtils.formatDateTime(this, System.currentTimeMillis()) + ".am.md";
-                                mExportAppListMarkdown.launch(fileName);
+                            case ListExporter.EXPORT_TYPE_JSON:
+                                mExportAppListJson.launch(filename + ".json");
                                 break;
-                            }
+                            case ListExporter.EXPORT_TYPE_XML:
+                                mExportAppListXml.launch(filename + ".xml");
+                                break;
+                            case ListExporter.EXPORT_TYPE_MARKDOWN:
+                                mExportAppListMarkdown.launch(filename + ".md");
+                                break;
                         }
                     })
                     .setNegativeButton(R.string.close, null)
@@ -484,7 +512,8 @@ public class MainActivity extends BaseActivity implements AdvancedSearchView.OnQ
             mBatchOpsHandler.updateConstraints();
             mMultiSelectionView.updateCounter(false);
         }
-        registerReceiver(mBatchOpsBroadCastReceiver, new IntentFilter(BatchOpsService.ACTION_BATCH_OPS_COMPLETED));
+        ContextCompat.registerReceiver(this, mBatchOpsBroadCastReceiver,
+                new IntentFilter(BatchOpsService.ACTION_BATCH_OPS_COMPLETED), ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     @Override
@@ -516,8 +545,8 @@ public class MainActivity extends BaseActivity implements AdvancedSearchView.OnQ
                             return;
                         }
                         runOnUiThread(() -> {
-                            RecyclerView recyclerView = (RecyclerView) View.inflate(this, R.layout.dialog_whats_new, null);
-                            recyclerView.setHasFixedSize(true);
+                            View view = View.inflate(this, R.layout.dialog_whats_new, null);
+                            RecyclerView recyclerView = view.findViewById(android.R.id.list);
                             recyclerView.setLayoutManager(new LinearLayoutManager(recyclerView.getContext()));
                             ChangelogRecyclerAdapter adapter = new ChangelogRecyclerAdapter();
                             recyclerView.setAdapter(adapter);
@@ -556,7 +585,7 @@ public class MainActivity extends BaseActivity implements AdvancedSearchView.OnQ
                 .show();
     }
 
-    private void showProgressIndicator(boolean show) {
+    void showProgressIndicator(boolean show) {
         if (show) mProgressIndicator.show();
         else mProgressIndicator.hide();
     }

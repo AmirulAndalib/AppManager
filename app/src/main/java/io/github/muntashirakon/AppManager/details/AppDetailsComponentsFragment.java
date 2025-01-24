@@ -2,12 +2,14 @@
 
 package io.github.muntashirakon.AppManager.details;
 
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PathPermission;
 import android.content.pm.ProviderInfo;
 import android.content.pm.ServiceInfo;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.PatternMatcher;
 import android.os.UserHandleHidden;
@@ -20,7 +22,6 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.IntDef;
 import androidx.annotation.MainThread;
@@ -33,7 +34,6 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import com.google.android.material.divider.MaterialDivider;
 import com.google.android.material.materialswitch.MaterialSwitch;
 
 import java.lang.annotation.Retention;
@@ -43,10 +43,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import io.github.muntashirakon.AppManager.R;
 import io.github.muntashirakon.AppManager.compat.ActivityManagerCompat;
 import io.github.muntashirakon.AppManager.compat.ManifestCompat;
+import io.github.muntashirakon.AppManager.details.struct.AppDetailsActivityItem;
 import io.github.muntashirakon.AppManager.details.struct.AppDetailsComponentItem;
 import io.github.muntashirakon.AppManager.details.struct.AppDetailsItem;
 import io.github.muntashirakon.AppManager.details.struct.AppDetailsServiceItem;
@@ -60,10 +63,12 @@ import io.github.muntashirakon.AppManager.settings.FeatureController;
 import io.github.muntashirakon.AppManager.settings.Prefs;
 import io.github.muntashirakon.AppManager.shortcut.CreateShortcutDialogFragment;
 import io.github.muntashirakon.AppManager.types.UserPackagePair;
+import io.github.muntashirakon.AppManager.utils.ContextUtils;
 import io.github.muntashirakon.AppManager.utils.ThreadUtils;
 import io.github.muntashirakon.AppManager.utils.UIUtils;
 import io.github.muntashirakon.AppManager.utils.Utils;
 import io.github.muntashirakon.AppManager.utils.appearance.ColorCodes;
+import io.github.muntashirakon.util.AdapterUtils;
 import io.github.muntashirakon.view.ProgressIndicatorCompat;
 import io.github.muntashirakon.widget.MaterialAlertView;
 import io.github.muntashirakon.widget.RecyclerView;
@@ -91,7 +96,6 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setHasOptionsMenu(true);
         mNeededProperty = requireArguments().getInt(ARG_TYPE);
     }
 
@@ -132,16 +136,16 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
     }
 
     @Override
-    public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
+    public void onCreateMenu(@NonNull Menu menu, @NonNull MenuInflater menuInflater) {
         if (viewModel != null && !viewModel.isExternalApk() && SelfPermissions.canModifyAppComponentStates(
                 viewModel.getUserId(), viewModel.getPackageName(), viewModel.isTestOnlyApp())) {
-            inflater.inflate(R.menu.fragment_app_details_components_actions, menu);
+            menuInflater.inflate(R.menu.fragment_app_details_components_actions, menu);
             mBlockingToggler = menu.findItem(R.id.action_toggle_blocking);
-        } else inflater.inflate(R.menu.fragment_app_details_refresh_actions, menu);
+        } else menuInflater.inflate(R.menu.fragment_app_details_refresh_actions, menu);
     }
 
     @Override
-    public void onPrepareOptionsMenu(@NonNull Menu menu) {
+    public void onPrepareMenu(@NonNull Menu menu) {
         if (viewModel == null || viewModel.isExternalApk()) {
             return;
         }
@@ -156,7 +160,7 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
     }
 
     @Override
-    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+    public boolean onMenuItemSelected(@NonNull MenuItem item) {
         int id = item.getItemId();
         if (id == R.id.action_refresh_details) {
             refreshDetails();
@@ -181,7 +185,7 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
         } else if (id == R.id.action_sort_by_tracker_components) {  // Components
             setSortBy(AppDetailsFragment.SORT_BY_TRACKERS);
             item.setChecked(true);
-        } else return super.onOptionsItemSelected(item);
+        } else return false;
         return true;
     }
 
@@ -306,21 +310,17 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
         private int mUserId;
         private boolean mCanModifyComponentStates;
         private boolean mCanStartAnyActivity;
-        private final int mCardColor1;
         private final int mBlockedIndicatorColor;
         private final int mBlockedExternallyIndicatorColor;
         private final int mTrackerIndicatorColor;
         private final int mRunningIndicatorColor;
-        private final int mDefaultIndicatorColor;
 
         AppDetailsRecyclerAdapter() {
             mAdapterList = new ArrayList<>();
-            mCardColor1 = ColorCodes.getListItemColor1(activity);
             mBlockedIndicatorColor = ColorCodes.getComponentBlockedIndicatorColor(activity);
             mBlockedExternallyIndicatorColor = ColorCodes.getComponentExternallyBlockedIndicatorColor(activity);
             mTrackerIndicatorColor = ColorCodes.getComponentTrackerIndicatorColor(activity);
             mRunningIndicatorColor = ColorCodes.getComponentRunningIndicatorColor(activity);
-            mDefaultIndicatorColor = ColorCodes.getListItemDefaultIndicatorColor(activity);
         }
 
         @UiThread
@@ -337,24 +337,11 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
                     mConstraint = null;
                     mUserId = UserHandleHidden.myUserId();
                 }
-                int previousSize = mAdapterList.size();
-                synchronized (mAdapterList) {
-                    mAdapterList.clear();
-                    mAdapterList.addAll(list);
-                }
-                int currentSize = mAdapterList.size();
                 ThreadUtils.postOnMainThread(() -> {
                     if (isDetached()) return;
                     ProgressIndicatorCompat.setVisibility(progressIndicator, false);
                     synchronized (mAdapterList) {
-                        if (previousSize != 0) {
-                            notifyItemRangeChanged(0, previousSize);
-                        }
-                        if (previousSize < currentSize) {
-                            notifyItemRangeInserted(previousSize, currentSize - previousSize);
-                        } else if (previousSize > currentSize) {
-                            notifyItemRangeRemoved(currentSize, previousSize - currentSize);
-                        }
+                        AdapterUtils.notifyDataSetChanged(this, mAdapterList, list);
                     }
                 });
             });
@@ -365,6 +352,7 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
          * the same holder for any kind of view, and view are not all sames.
          */
         class ViewHolder extends RecyclerView.ViewHolder {
+            MaterialCardView itemView;
             TextView labelView;
             TextView nameView;
             TextView textView1;
@@ -376,11 +364,12 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
             Button shortcutBtn;
             MaterialButton launchBtn;
             MaterialSwitch toggleSwitch;
-            MaterialDivider divider;
+            TextView blockingMethod;
             Chip chipType;
 
             public ViewHolder(@NonNull View itemView) {
                 super(itemView);
+                this.itemView = (MaterialCardView) itemView;
                 imageView = itemView.findViewById(R.id.icon);
                 labelView = itemView.findViewById(R.id.label);
                 nameView = itemView.findViewById(R.id.name);
@@ -388,10 +377,9 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
 
                 shortcutBtn = itemView.findViewById(R.id.edit_shortcut_btn);
                 toggleSwitch = itemView.findViewById(R.id.toggle_button);
+                blockingMethod = itemView.findViewById(R.id.method);
                 chipType = itemView.findViewById(R.id.type);
                 launchBtn = itemView.findViewById(R.id.launch);
-
-                divider = itemView.findViewById(R.id.divider);
 
                 if (mRequestedProperty == ACTIVITIES) {
                     textView1 = itemView.findViewById(R.id.taskAffinity);
@@ -409,7 +397,6 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
                     textView2 = itemView.findViewById(R.id.launchMode);
                     textView3 = itemView.findViewById(R.id.orientation);
                     textView4 = itemView.findViewById(R.id.softInput);
-                    divider = itemView.findViewById(R.id.divider);
                     launchBtn.setVisibility(View.GONE);
                     shortcutBtn.setVisibility(View.GONE);
                 } else if (mRequestedProperty == PROVIDERS) {
@@ -457,7 +444,24 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
         }
 
         private void handleBlock(@NonNull ViewHolder holder, @NonNull AppDetailsComponentItem item, RuleType ruleType) {
-            holder.toggleSwitch.setChecked(!item.isBlocked());
+            ComponentRule rule = item.getRule();
+            boolean isBlocked = item.isBlocked();
+            if (isBlocked) {
+                Objects.requireNonNull(rule);
+                holder.blockingMethod.setVisibility(View.VISIBLE);
+                String method;
+                if (rule.isIfw()) {
+                    if (item.isDisabled()) {
+                        method = "IFW+Dis";
+                    } else method = "IFW";
+                } else {
+                    method = "Dis";
+                }
+                holder.blockingMethod.setText(method);
+            } else {
+                holder.blockingMethod.setVisibility(View.GONE);
+            }
+            holder.toggleSwitch.setChecked(!isBlocked);
             holder.toggleSwitch.setVisibility(View.VISIBLE);
             holder.toggleSwitch.setOnClickListener(buttonView -> {
                 String componentStatus = item.isBlocked()
@@ -467,12 +471,11 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
             });
             holder.toggleSwitch.setOnLongClickListener(v -> {
                 PopupMenu popupMenu = new PopupMenu(activity, holder.toggleSwitch);
+                Menu menu = popupMenu.getMenu();
+                boolean canBlockByIfw = !(item.item instanceof ProviderInfo) && SelfPermissions.canBlockByIFW();
                 popupMenu.inflate(R.menu.fragment_app_details_components_selection_actions);
-                if (!SelfPermissions.canBlockByIFW()) {
-                    Menu menu = popupMenu.getMenu();
-                    menu.findItem(R.id.action_ifw_and_disable).setEnabled(false);
-                    menu.findItem(R.id.action_ifw).setEnabled(false);
-                }
+                menu.findItem(R.id.action_ifw_and_disable).setEnabled(canBlockByIfw);
+                menu.findItem(R.id.action_ifw).setEnabled(canBlockByIfw);
                 popupMenu.setOnMenuItemClickListener(item1 -> {
                     int id = item1.getItemId();
                     String componentStatus;
@@ -498,22 +501,22 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
         }
 
         private void getActivityView(@NonNull ViewHolder holder, int index) {
-            final AppDetailsComponentItem componentItem;
+            final AppDetailsActivityItem componentItem;
             synchronized (mAdapterList) {
-                componentItem = (AppDetailsComponentItem) mAdapterList.get(index);
+                componentItem = (AppDetailsActivityItem) mAdapterList.get(index);
             }
-            final ActivityInfo activityInfo = (ActivityInfo) componentItem.mainItem;
+            final ActivityInfo activityInfo = (ActivityInfo) componentItem.item;
             final String activityName = componentItem.name;
             final boolean isDisabled = !mIsExternalApk && componentItem.isDisabled();
             // Background color: regular < tracker < disabled < blocked
             if (!mIsExternalApk && componentItem.isBlocked()) {
-                holder.divider.setDividerColor(mBlockedIndicatorColor);
+                holder.itemView.setStrokeColor(mBlockedIndicatorColor);
             } else if (isDisabled) {
-                holder.divider.setDividerColor(mBlockedExternallyIndicatorColor);
+                holder.itemView.setStrokeColor(mBlockedExternallyIndicatorColor);
             } else if (componentItem.isTracker()) {
-                holder.divider.setDividerColor(mTrackerIndicatorColor);
+                holder.itemView.setStrokeColor(mTrackerIndicatorColor);
             } else {
-                holder.divider.setDividerColor(mDefaultIndicatorColor);
+                holder.itemView.setStrokeColor(Color.TRANSPARENT);
             }
             if (componentItem.isTracker()) {
                 holder.chipType.setText(R.string.tracker);
@@ -554,15 +557,33 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
                         getString(R.string.process_name), processName));
             } else holder.processNameView.setVisibility(View.GONE);
             boolean isExported = activityInfo.exported;
-            if (componentItem.canLaunch) {
+            if (componentItem.canLaunch || componentItem.canLaunchAssist) {
                 holder.launchBtn.setOnClickListener(v -> {
-                    Intent intent = new Intent();
-                    intent.setClassName(mPackageName, activityName);
-                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    try {
-                        ActivityManagerCompat.startActivity(intent, mUserId);
-                    } catch (Throwable e) {
-                        UIUtils.displayLongToast(e.getLocalizedMessage());
+                    ComponentName cn = new ComponentName(mPackageName, activityName);
+                    if (componentItem.canLaunch) {
+                        Intent intent = new Intent();
+                        intent.setComponent(cn);
+                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        try {
+                            ActivityManagerCompat.startActivity(intent, mUserId);
+                        } catch (Throwable e) {
+                            UIUtils.displayLongToast(e.getLocalizedMessage());
+                        }
+                    } else if (componentItem.canLaunchAssist) {
+                        ActivityManagerCompat.startActivityViaAssist(ContextUtils.getContext(), cn, () -> {
+                            CountDownLatch waitForInteraction = new CountDownLatch(1);
+                            ThreadUtils.postOnMainThread(() -> new MaterialAlertDialogBuilder(holder.itemView.getContext())
+                                    .setTitle(R.string.launch_activity_dialog_title)
+                                    .setMessage(R.string.launch_activity_dialog_message)
+                                    .setCancelable(false)
+                                    .setOnDismissListener((dialog) -> waitForInteraction.countDown())
+                                    .setNegativeButton(R.string.close, null)
+                                    .show());
+                            try {
+                                waitForInteraction.await(10, TimeUnit.MINUTES);
+                            } catch (InterruptedException ignore) {
+                            }
+                        });
                     }
                 });
                 if (FeatureController.isInterceptorEnabled()) {
@@ -578,7 +599,7 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
                     });
                 }
                 holder.shortcutBtn.setOnClickListener(v -> {
-                    PackageItemShortcutInfo<ActivityInfo> shortcutInfo = new PackageItemShortcutInfo<>(activityInfo, ActivityInfo.class);
+                    PackageItemShortcutInfo<ActivityInfo> shortcutInfo = new PackageItemShortcutInfo<>(activityInfo, ActivityInfo.class, mUserId, componentItem.canLaunchAssist);
                     shortcutInfo.setName(componentItem.label);
                     shortcutInfo.setIcon(UIUtils.getBitmapFromDrawable(activityInfo.loadIcon(packageManager)));
                     CreateShortcutDialogFragment dialog = CreateShortcutDialogFragment.getInstance(shortcutInfo);
@@ -593,8 +614,10 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
             // Blocking
             if (mCanModifyComponentStates) {
                 handleBlock(holder, componentItem, RuleType.ACTIVITY);
-            } else holder.toggleSwitch.setVisibility(View.GONE);
-            ((MaterialCardView) holder.itemView).setCardBackgroundColor(mCardColor1);
+            } else {
+                holder.toggleSwitch.setVisibility(View.GONE);
+                holder.blockingMethod.setVisibility(View.GONE);
+            }
         }
 
         private void getServicesView(@NonNull Context context, @NonNull ViewHolder holder, int index) {
@@ -602,19 +625,19 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
             synchronized (mAdapterList) {
                 serviceItem = (AppDetailsServiceItem) mAdapterList.get(index);
             }
-            final ServiceInfo serviceInfo = (ServiceInfo) serviceItem.mainItem;
+            final ServiceInfo serviceInfo = (ServiceInfo) serviceItem.item;
             final boolean isDisabled = !mIsExternalApk && serviceItem.isDisabled();
             // Background color: regular < tracker < disabled < blocked < running
             if (serviceItem.isRunning()) {
-                holder.divider.setDividerColor(mRunningIndicatorColor);
+                holder.itemView.setStrokeColor(mRunningIndicatorColor);
             } else if (!mIsExternalApk && serviceItem.isBlocked()) {
-                holder.divider.setDividerColor(mBlockedIndicatorColor);
+                holder.itemView.setStrokeColor(mBlockedIndicatorColor);
             } else if (isDisabled) {
-                holder.divider.setDividerColor(mBlockedExternallyIndicatorColor);
+                holder.itemView.setStrokeColor(mBlockedExternallyIndicatorColor);
             } else if (serviceItem.isTracker()) {
-                holder.divider.setDividerColor(mTrackerIndicatorColor);
+                holder.itemView.setStrokeColor(mTrackerIndicatorColor);
             } else {
-                holder.divider.setDividerColor(mDefaultIndicatorColor);
+                holder.itemView.setStrokeColor(Color.TRANSPARENT);
             }
             if (serviceItem.isTracker()) {
                 holder.chipType.setText(R.string.tracker);
@@ -656,7 +679,7 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
                         ActivityManagerCompat.startService(intent, mUserId, true);
                     } catch (Throwable th) {
                         th.printStackTrace();
-                        Toast.makeText(context, th.toString(), Toast.LENGTH_LONG).show();
+                        UIUtils.displayShortToast(th.toString());
                     }
                 });
                 holder.launchBtn.setVisibility(View.VISIBLE);
@@ -666,8 +689,10 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
             // Blocking
             if (mCanModifyComponentStates) {
                 handleBlock(holder, serviceItem, RuleType.SERVICE);
-            } else holder.toggleSwitch.setVisibility(View.GONE);
-            ((MaterialCardView) holder.itemView).setCardBackgroundColor(mCardColor1);
+            } else {
+                holder.toggleSwitch.setVisibility(View.GONE);
+                holder.blockingMethod.setVisibility(View.GONE);
+            }
         }
 
         private void getReceiverView(@NonNull ViewHolder holder, int index) {
@@ -675,16 +700,16 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
             synchronized (mAdapterList) {
                 componentItem = (AppDetailsComponentItem) mAdapterList.get(index);
             }
-            final ActivityInfo activityInfo = (ActivityInfo) componentItem.mainItem;
+            final ActivityInfo activityInfo = (ActivityInfo) componentItem.item;
             // Background color: regular < tracker < disabled < blocked
             if (!mIsExternalApk && componentItem.isBlocked()) {
-                holder.divider.setDividerColor(mBlockedIndicatorColor);
+                holder.itemView.setStrokeColor(mBlockedIndicatorColor);
             } else if (!mIsExternalApk && componentItem.isDisabled()) {
-                holder.divider.setDividerColor(mBlockedExternallyIndicatorColor);
+                holder.itemView.setStrokeColor(mBlockedExternallyIndicatorColor);
             } else if (componentItem.isTracker()) {
-                holder.divider.setDividerColor(mTrackerIndicatorColor);
+                holder.itemView.setStrokeColor(mTrackerIndicatorColor);
             } else {
-                holder.divider.setDividerColor(mDefaultIndicatorColor);
+                holder.itemView.setStrokeColor(Color.TRANSPARENT);
             }
             if (componentItem.isTracker()) {
                 holder.chipType.setText(R.string.tracker);
@@ -727,8 +752,10 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
             // Blocking
             if (mCanModifyComponentStates) {
                 handleBlock(holder, componentItem, RuleType.RECEIVER);
-            } else holder.toggleSwitch.setVisibility(View.GONE);
-            ((MaterialCardView) holder.itemView).setCardBackgroundColor(mCardColor1);
+            } else {
+                holder.toggleSwitch.setVisibility(View.GONE);
+                holder.blockingMethod.setVisibility(View.GONE);
+            }
         }
 
         private void getProviderView(@NonNull ViewHolder holder, int index) {
@@ -736,17 +763,17 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
             synchronized (mAdapterList) {
                 componentItem = (AppDetailsComponentItem) mAdapterList.get(index);
             }
-            final ProviderInfo providerInfo = (ProviderInfo) componentItem.mainItem;
+            final ProviderInfo providerInfo = (ProviderInfo) componentItem.item;
             final String providerName = providerInfo.name;
             // Background color: regular < tracker < disabled < blocked
             if (!mIsExternalApk && componentItem.isBlocked()) {
-                holder.divider.setDividerColor(mBlockedIndicatorColor);
+                holder.itemView.setStrokeColor(mBlockedIndicatorColor);
             } else if (!mIsExternalApk && componentItem.isDisabled()) {
-                holder.divider.setDividerColor(mBlockedExternallyIndicatorColor);
+                holder.itemView.setStrokeColor(mBlockedExternallyIndicatorColor);
             } else if (componentItem.isTracker()) {
-                holder.divider.setDividerColor(mTrackerIndicatorColor);
+                holder.itemView.setStrokeColor(mTrackerIndicatorColor);
             } else {
-                holder.divider.setDividerColor(mDefaultIndicatorColor);
+                holder.itemView.setStrokeColor(Color.TRANSPARENT);
             }
             if (componentItem.isTracker()) {
                 holder.chipType.setText(R.string.tracker);
@@ -811,8 +838,10 @@ public class AppDetailsComponentsFragment extends AppDetailsFragment {
             // Blocking
             if (mCanModifyComponentStates) {
                 handleBlock(holder, componentItem, RuleType.PROVIDER);
-            } else holder.toggleSwitch.setVisibility(View.GONE);
-            ((MaterialCardView) holder.itemView).setCardBackgroundColor(mCardColor1);
+            } else {
+                holder.toggleSwitch.setVisibility(View.GONE);
+                holder.blockingMethod.setVisibility(View.GONE);
+            }
         }
     }
 }

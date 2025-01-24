@@ -89,7 +89,7 @@
     <string name="license">License</string>
     <string name="license_message" translatable="false"><a href="https://www.gnu.org/licenses/gpl-3.0.html">GNU General
         Public License v3.0</a></string>
-    <string name="copyright_message" translatable="false">© 2020–2023 <a href="https://github.com/MuntashirAkon">Muntashir Al-Islam</a></string>
+    <string name="copyright_message" translatable="false">© 2020–2024 <a href="https://github.com/MuntashirAkon">Muntashir Al-Islam</a></string>
     <string name="third_party">Third-party Libraries and Icons</string>
     <string name="third_party_message" translatable="false">-
         <a href="https://github.com/zhanghai/AndroidFastScroll">AndroidFastScroll</a> (Apache 2.0)
@@ -110,8 +110,7 @@
         \n- <a href="https://github.com/Rosemoe/sora-editor">sora-editor</a> (LGPL-2.1)
         \n- <a href="https://github.com/MuntashirAkon/spake2-java">SPAKE2 for Java</a> (GPLv3.0)
         \n- <a href="https://github.com/MuntashirAkon/sun-security-android">sun.security for Android</a> (GPL-2.0 \"Classpath Exception\")
-        \n- <a href="https://github.com/MuntashirAkon/unapkm-android">UnAPKM Android</a> (Apache 2.0)
-    </string>
+        \n- <a href="https://github.com/MuntashirAkon/unapkm-android">UnAPKM Android</a> (Apache 2.0)</string>
     <string name="credits">Credits</string>
     <string name="credits_message">To the authors of
         \n- The Android Open Source Project
@@ -136,8 +135,7 @@
         \n- <a href="https://github.com/Aefyr/SAI">SAI</a>
         \n- <a href="https://github.com/RikkaApps/Shizuku">Shizuku</a>
         \n- <a href="https://github.com/eclipse/tm4e">tm4e</a>
-        \n- <a href="https://github.com/tuyafeng/Watt">Watt</a>
-    </string>
+        \n- <a href="https://github.com/tuyafeng/Watt">Watt</a></string>
     <string name="word_wrap">Toggle word wrap</string>
     <string name="class_viewer">Class Viewer</string>
     <string name="toggle_class_listing">Toggle Class Listing</string>
@@ -430,7 +428,6 @@
     <string name="features">Features</string>
     <string name="whats_new">What\'s New</string>
     <string name="blocking_rules">Blocking rules</string>
-    <string name="cache">Cache</string>
     <string name="external_data">External data</string>
     <string name="internal_data">Internal data</string>
     <string name="data">Data</string>
@@ -795,12 +792,8 @@
     <string name="backup_obb_media_description">Back up OBB and media folders.</string>
     <string name="backup_cache_description">Back up <b>cache</b>, <b>no_cache</b> and <b>no_backup</b> folders.</string>
     <string name="backup_extras">Extras</string>
-    <string name="backup_extras_description">Back up app permissions, battery saving and data usage options, MagiskHide status, SSAID, etc.
-        <font fgcolor="#ff0000">Depending on the permissions, not all extras can be restored.</font>
-    </string>
-    <string name="backup_rules_description">Back up rules configured within App Manager.
-        <font fgcolor="#ff0000">Depending on the permissions, not all rules can be reapplied during restore.</font>
-    </string>
+    <string name="backup_extras_description">Back up app permissions, battery saving and data usage options, MagiskHide status, SSAID, etc. <font fgcolor="#ff0000">Depending on the permissions, not all extras can be restored.</font></string>
+    <string name="backup_rules_description">Back up rules configured within App Manager. <font fgcolor="#ff0000">Depending on the permissions, not all rules can be reapplied during restore.</font></string>
     <string name="backup_multiple_description">Create a separate <i>named</i> backup instead of the base backup.</string>
     <string name="backup_skip_signature_checks_description">Restore backups that either fail checksum verification or have different APK signatures than their prior backups.</string>
     <string name="patch_level">Patch level</string>
@@ -1083,9 +1076,7 @@
     <string name="keystore_password_info">The following is the App Manager KeyStore password. Please store it in a secure place if you\'re going to back up/restore App Manager KeyStore. <b>This message will not be displayed again.</b></string>
     <string name="keystore_pass_cannot_be_empty">KeyStore password cannot be empty.</string>
     <string name="invalid_password">Invalid password, try again.</string>
-    <string name="adb_wifi_paring_code">Wi-Fi pairing code</string>
     <string name="adb_pair">Pair</string>
-    <string name="port_number_pairing_code_empty">Empty port number or pairing code.</string>
     <string name="paired_successfully">Paired.</string>
     <string name="identifier">Identifier</string>
     <string name="set_package_name_first">Set package name first!</string>
@@ -1124,7 +1115,7 @@
     <string name="intent_firewall_and_disable">IFW + disable</string>
     <string name="intent_firewall">IFW</string>
     <string name="pref_default_blocking_method">Default blocking method</string>
-    <string name="pref_default_blocking_method_description">Method to use by default in places where there is no option to select a blocking method.</string>
+    <string name="pref_default_blocking_method_description">Method to use by default in places where there is no option to select a blocking method.\n<b>Note:</b> “IFW” does not work with providers, “disable” is used instead.</string>
     <string name="pref_intent_firewall_and_disable_description">Block components using Intent Firewall as well as disable them. Recommended method for root users.</string>
     <string name="pref_intent_firewall_description">Block components using Intent Firewall only. Not recommended as some system apps can bypass firewalls.</string>
     <string name="pref_disable_description">Disable components only. Not recommended for root users since the apps can bypass this. In ADB modes, the test-only apps can be disabled with this method.</string>
@@ -1134,6 +1125,7 @@
     <string name="search_type_suffix">Suffix</string>
     <string name="search_type_regular_expressions">Regex</string>
     <string name="toggle_internet">Use the Internet</string>
+    <string name="pref_toggle_internet_msg">Activate the Internet features in App Manager</string>
     <string name="vt_checking">VirusTotal: Checking…</string>
     <string name="vt_uploading">VirusTotal: Uploading…</string>
     <string name="vt_queued">VirusTotal: Queued</string>
@@ -1454,4 +1446,52 @@
     <string name="choose_a_profile_state">Select a profile state</string>
     <string name="profile_id">Profile ID</string>
     <string name="copy_profile_id">Copy profile ID</string>
+    <string name="launch_activity_dialog_title">Launch Activity: Action Required</string>
+    <string name="launch_activity_dialog_message">App Manager is trying to launch the activity via <b>Search assistant</b> (usually Google Assistant), but it\'s unable to do so due to insufficient permission. To open the activity, please activate <b>Search assistant</b> manually (which is usually done by long clicking on the Home button). Click on the <b>Close</b> button after you\'ve finished launching the activity to revert back to the original assistant.</string>
+    <string name="finder_title">Finder</string>
+    <string name="select_filter">Select a filter</string>
+    <string name="size_in_bytes">Size (bytes)</string>
+    <string name="invalid_regex">Invalid regular expression!</string>
+    <string name="value_cannot_be_empty">Value cannot be empty!</string>
+    <string name="date">Date</string>
+    <string name="pref_use_vt">Use VirusTotal</string>
+    <string name="virus_total">VirusTotal</string>
+    <string name="pref_use_vt_no_internet">VirusTotal requires the Internet to operate which isn\'t enabled. Please enable <a href="app-manager://settings/privacy_prefs/toggle_internet">“Use the Internet”</a> first.</string>
+    <string name="pref_use_log_viewer">Use Log Viewer</string>
+    <string name="pref_installer">Use the installer</string>
+    <string name="pref_cat_general">General</string>
+    <string name="status_remote_server_active">Remote server is active</string>
+    <string name="status_remote_server_inactive">Remote server is inactive</string>
+    <string name="status_remote_services_active">Remote services are active</string>
+    <string name="status_remote_services_inactive">Remote services are inactive</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_connecting_via_mode">Connecting via %s</string>
+    <string name="status_connected_via_mode">Connected via %s</string>
+    <string name="status_not_connected_via_mode">Could not connect via %s</string>
+    <string name="adb_pairing_instruction">Please navigate to the developer options to enable wireless debugging and generate a pairing code. Click <b>Manual</b> if you\'ve already opened the developer options.</string>
+    <string name="adb_pairing_searching_for_port">Searching…</string>
+    <string name="adb_pairing_stop_searching">Stop</string>
+    <string name="adb_pairing_input_pairing_code">Pairing code</string>
+    <string name="adb_pairing_pairing_code">Pairing code</string>
+    <string name="adb_pairing_found_pairing_service_with_port">Found a service with port %d</string>
+    <string name="adb_pairing_pairing_in_progress">Pairing…</string>
+    <string name="adb_pairing_retry_pairing">Retry</string>
+    <string name="mode_of_op_custom_command_title">Custom Command</string>
+    <string name="mode_of_op_custom_command">If you are unable to use any of the modes, you can run the following command in any supported shell to run App Manager in privileged mode:</string>
+    <string name="mode_of_op_alternative_custom_command">If you get a “permission denied” error with the above command, run the following command instead:</string>
+    <string name="sensors">Sensors</string>
+    <string name="tag_sensors_disabled">Sensors disabled</string>
+    <string name="pref_use_system_font">Use system font</string>
+    <string name="pref_use_system_font_msg">Use the system-default font instead of the material font. <font fgcolor="#ff0000">This is an experimental feature.</font></string>
+    <string name="actual_installer">Actual Installer</string>
+    <string name="apk_source">APK Source</string>
+    <string name="backup_cache">Cache</string>
+    <string name="activity_name">Activity Name</string>
+    <string name="available_memory">Available: %s</string>
+    <string name="action_manual">Manual</string>
+    <string name="vulkan_version">Vulkan version</string>
+    <string name="battery_technology">Technology</string>
+    <string name="battery_health">Health</string>
+    <string name="verified_boot">Verified boot</string>
+    <string name="android_verified_bootloader_version">AVB version</string>
 </resources>

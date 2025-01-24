@@ -98,14 +98,13 @@ public class ScannerFragment extends Fragment {
         signaturesView.setCardBackgroundColor(cardColor);
         MaterialCardView missingLibsView = view.findViewById(R.id.missing_libs);
         missingLibsView.setCardBackgroundColor(cardColor);
-        boolean isInternetEnabled = FeatureController.isInternetEnabled();
         // VirusTotal
-        if (!isInternetEnabled || Prefs.VirusTotal.getApiKey() == null) {
+        if (!FeatureController.isVirusTotalEnabled() || Prefs.VirusTotal.getApiKey() == null) {
             mVtContainerView.setVisibility(View.GONE);
             view.findViewById(R.id.vt_disclaimer).setVisibility(View.GONE);
         }
         // Pithus
-        if (!isInternetEnabled) {
+        if (!FeatureController.isInternetEnabled()) {
             pithusContainerView.setVisibility(View.GONE);
         }
         // Checksum
@@ -143,7 +142,7 @@ public class ScannerFragment extends Fragment {
             SpannableStringBuilder builder = new SpannableStringBuilder();
             builder.append(PackageUtils.getApkVerifierInfo(result, mActivity));
             List<X509Certificate> certificates = result.getSignerCertificates();
-            if (certificates != null && certificates.size() > 0) {
+            if (certificates != null && !certificates.isEmpty()) {
                 builder.append(getCertificateInfo(mActivity, certificates));
             }
             checksumDescription.setText(builder);
@@ -165,7 +164,7 @@ public class ScannerFragment extends Fragment {
         });
         // List missing classes
         mViewModel.missingClassesLiveData().observe(getViewLifecycleOwner(), missingClasses -> {
-            if (missingClasses.size() > 0) {
+            if (!missingClasses.isEmpty()) {
                 ((TextView) view.findViewById(R.id.missing_libs_title)).setText(getResources().getQuantityString(R.plurals.missing_signatures, missingClasses.size(), missingClasses.size()));
                 missingLibsView.setVisibility(View.VISIBLE);
                 missingLibsView.setOnClickListener(v2 -> new SearchableMultiChoiceDialogBuilder<>(mActivity, missingClasses,
@@ -174,11 +173,13 @@ public class ScannerFragment extends Fragment {
                         .showSelectAll(false)
                         .setNegativeButton(R.string.ok, null)
                         .setNeutralButton(R.string.send_selected, (dialog, which, selectedItems) -> {
+                            String message = "Package: " + mViewModel.getPackageName() + "\n" +
+                                    "Signatures: " + selectedItems;
                             Intent i = new Intent(Intent.ACTION_SEND);
                             i.setType("message/rfc822");
-                            i.putExtra(Intent.EXTRA_EMAIL, new String[]{"muntashirakon@riseup.net"});
+                            i.putExtra(Intent.EXTRA_EMAIL, new String[]{"am4android@riseup.net"});
                             i.putExtra(Intent.EXTRA_SUBJECT, "App Manager: Missing signatures");
-                            i.putExtra(Intent.EXTRA_TEXT, selectedItems.toString());
+                            i.putExtra(Intent.EXTRA_TEXT, message);
                             startActivity(Intent.createChooser(i, getText(R.string.signatures)));
                         })
                         .show());
@@ -277,7 +278,7 @@ public class ScannerFragment extends Fragment {
     @NonNull
     private Map<String, SpannableStringBuilder> getNativeLibraryInfo(boolean trackerOnly) {
         Collection<String> nativeLibsInApk = mViewModel.getNativeLibraries();
-        if (nativeLibsInApk.size() == 0) return new HashMap<>();
+        if (nativeLibsInApk.isEmpty()) return new HashMap<>();
         String[] libNames = getResources().getStringArray(R.array.lib_native_names);
         String[] libSignatures = getResources().getStringArray(R.array.lib_native_signatures);
         int[] isTracker = getResources().getIntArray(R.array.lib_native_is_tracker);

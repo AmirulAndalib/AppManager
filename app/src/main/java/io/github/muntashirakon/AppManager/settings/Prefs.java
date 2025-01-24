@@ -8,6 +8,7 @@ import android.Manifest;
 import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
@@ -148,6 +149,10 @@ public final class Prefs {
 
         public static void setNightMode(int nightMode) {
             AppPref.set(AppPref.PrefKey.PREF_APP_THEME_INT, nightMode);
+        }
+
+        public static boolean useSystemFont() {
+            return AppPref.getBoolean(AppPref.PrefKey.PREF_USE_SYSTEM_FONT_BOOL);
         }
     }
 
@@ -320,8 +325,13 @@ public final class Prefs {
 
         public static void setLastOpenedPath(@NonNull FmActivity.Options options, @NonNull Uri initUri, int position) {
             try {
+                if (options.isVfs) {
+                    // Ignore VFS for now
+                    return;
+                }
                 JSONObject object = new JSONObject();
                 object.put("pos", position);
+                //noinspection ConstantValue
                 if (options.isVfs) {
                     object.put("vfs", true);
                     object.put("path", options.uri.toString());
@@ -406,6 +416,24 @@ public final class Prefs {
 
         public static void setInstallerPackageName(@NonNull String packageName) {
             AppPref.set(AppPref.PrefKey.PREF_INSTALLER_INSTALLER_APP_STR, packageName);
+        }
+
+        @Nullable
+        public static String getOriginatingPackage() {
+            return null;
+        }
+
+        public static int getPackageSource() {
+            // Shell default
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                return PackageInstaller.PACKAGE_SOURCE_OTHER;
+            }
+            return 0;
+        }
+
+        public static boolean requestUpdateOwnership() {
+            // Shell default
+            return false;
         }
     }
 
@@ -510,7 +538,7 @@ public final class Prefs {
         @Nullable
         public static int[] getSelectedUsers() {
             String usersStr = AppPref.getString(AppPref.PrefKey.PREF_SELECTED_USERS_STR);
-            if ("".equals(usersStr)) return null;
+            if (usersStr.isEmpty()) return null;
             String[] usersSplitStr = usersStr.split(",");
             int[] users = new int[usersSplitStr.length];
             for (int i = 0; i < users.length; ++i) {
@@ -646,10 +674,6 @@ public final class Prefs {
 
         public static boolean promptBeforeUpload() {
             return AppPref.getBoolean(AppPref.PrefKey.PREF_VIRUS_TOTAL_PROMPT_BEFORE_UPLOADING_BOOL);
-        }
-
-        public static void setPromptBeforeUpload(boolean prompt) {
-            AppPref.set(AppPref.PrefKey.PREF_VIRUS_TOTAL_PROMPT_BEFORE_UPLOADING_BOOL, prompt);
         }
     }
 }

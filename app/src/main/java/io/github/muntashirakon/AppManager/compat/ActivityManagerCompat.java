@@ -8,6 +8,7 @@ import android.app.ActivityManager;
 import android.app.ActivityManagerNative;
 import android.app.IActivityManager;
 import android.content.ComponentName;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.IContentProvider;
 import android.content.IIntentReceiver;
@@ -16,14 +17,19 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.os.SystemClock;
 import android.os.UserHandleHidden;
+import android.provider.Settings;
 import android.text.TextUtils;
+import android.view.KeyEvent;
 
+import androidx.annotation.MainThread;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.annotation.RequiresPermission;
 import androidx.annotation.VisibleForTesting;
+import androidx.annotation.WorkerThread;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,28 +38,91 @@ import java.util.ListIterator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import io.github.muntashirakon.AppManager.BuildConfig;
+import io.github.muntashirakon.AppManager.fm.FmProvider;
 import io.github.muntashirakon.AppManager.ipc.ProxyBinder;
 import io.github.muntashirakon.AppManager.logs.Log;
 import io.github.muntashirakon.AppManager.runner.Runner;
 import io.github.muntashirakon.AppManager.self.SelfPermissions;
 import io.github.muntashirakon.AppManager.users.Users;
+import io.github.muntashirakon.AppManager.utils.ExUtils;
+import io.github.muntashirakon.AppManager.utils.ThreadUtils;
 
 public final class ActivityManagerCompat {
+    public interface ActivityLaunchUserInteractionRequiredCallback {
+        @WorkerThread
+        void onInteraction();
+    }
+
+    @RequiresPermission(allOf = {
+            Manifest.permission.WRITE_SECURE_SETTINGS,
+            ManifestCompat.permission.INJECT_EVENTS
+    })
+    @MainThread
+    public static void startActivityViaAssist(@NonNull Context context, @NonNull ComponentName activity,
+                                              @Nullable ActivityLaunchUserInteractionRequiredCallback callback)
+            throws SecurityException {
+        // Need two permissions: WRITE_SECURE_SETTINGS and INJECT_EVENTS
+        SelfPermissions.requireSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS);
+        boolean canInjectEvents = SelfPermissions.checkSelfOrRemotePermission(ManifestCompat.permission.INJECT_EVENTS);
+        ContentResolver resolver = context.getContentResolver();
+        // Backup assistant value
+        String assistantComponent = Settings.Secure.getString(resolver, "assistant");
+        if (canInjectEvents) {
+            ThreadUtils.postOnBackgroundThread(() -> {
+                try {
+                    // Set assistant value to the target activity component
+                    Settings.Secure.putString(resolver, "assistant", activity.flattenToShortString());
+                    // Run it as an assistant by injecting KEYCODE_ASSIST (219)
+                    InputManagerCompat.sendKeyEvent(KeyEvent.KEYCODE_ASSIST, false);
+                    // Wait until system opens the new assistant (i.e., activity), this is an empirical value
+                    SystemClock.sleep(500);
+                } finally {
+                    // Restore assistant value
+                    Settings.Secure.putString(resolver, "assistant", assistantComponent);
+                }
+            });
+        } else if (callback != null) {
+            // Cannot launch event by default, use callback
+            ThreadUtils.postOnBackgroundThread(() -> {
+                try {
+                    // Set assistant value to the target activity component
+                    Settings.Secure.putString(resolver, "assistant", activity.flattenToShortString());
+                    // Trigger callback
+                    callback.onInteraction();
+                } finally {
+                    // Restore assistant value
+                    Settings.Secure.putString(resolver, "assistant", assistantComponent);
+                }
+            });
+        } // else do nothing
+    }
+
     @SuppressWarnings("deprecation")
-    public static int startActivity(Intent intent, @UserIdInt int userHandle) throws RemoteException {
-        IActivityManager am = getActivityManager();
-        String callingPackage = SelfPermissions.getCallingPackage(Users.getSelfOrRemoteUid());
-        int result;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            result = am.startActivityAsUserWithFeature(null, callingPackage,
-                    null, intent, intent.getType(), null, null,
-                    0, 0, null, null, userHandle);
+    public static int startActivity(@NonNull Intent intent, @UserIdInt int userHandle) throws SecurityException {
+        IActivityManager am;
+        String callingPackage;
+        if (intent.getData() != null && FmProvider.AUTHORITY.equals(intent.getData().getAuthority())) {
+            // We need unprivileged authority for this
+            am = getActivityManagerUnprivileged();
+            callingPackage = BuildConfig.APPLICATION_ID;
         } else {
-            result = am.startActivityAsUser(null, callingPackage, intent, intent.getType(),
-                    null, null, 0, 0, null,
-                    null, userHandle);
+            am = getActivityManager();
+            callingPackage = SelfPermissions.getCallingPackage(Users.getSelfOrRemoteUid());
         }
-        return result;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                return am.startActivityAsUserWithFeature(null, callingPackage,
+                        null, intent, intent.getType(), null, null,
+                        0, 0, null, null, userHandle);
+            } else {
+                return am.startActivityAsUser(null, callingPackage, intent, intent.getType(),
+                        null, null, 0, 0, null,
+                        null, userHandle);
+            }
+        } catch (RemoteException e) {
+            return ExUtils.rethrowFromSystemServer(e);
+        }
     }
 
     @SuppressWarnings("deprecation")
@@ -129,6 +198,7 @@ public final class ActivityManagerCompat {
         return res;
     }
 
+    @NonNull
     public static List<ActivityManager.RunningAppProcessInfo> getRunningAppProcesses() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 && !SelfPermissions.checkSelfOrRemotePermission(ManifestCompat.permission.REAL_GET_TASKS)
@@ -138,11 +208,7 @@ public final class ActivityManagerCompat {
             return getRunningAppProcessesUsingDumpSys();
         } else {
             // For no-root, this returns app processes running in the current UID since Android M
-            try {
-                return getActivityManager().getRunningAppProcesses();
-            } catch (RemoteException e) {
-                return Collections.emptyList();
-            }
+            return ExUtils.requireNonNullElse(() -> getActivityManager().getRunningAppProcesses(), Collections.emptyList());
         }
     }
 
@@ -157,6 +223,14 @@ public final class ActivityManagerCompat {
             return IActivityManager.Stub.asInterface(ProxyBinder.getService(Context.ACTIVITY_SERVICE));
         } else {
             return ActivityManagerNative.asInterface(ProxyBinder.getService(Context.ACTIVITY_SERVICE));
+        }
+    }
+
+    public static IActivityManager getActivityManagerUnprivileged() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            return IActivityManager.Stub.asInterface(ProxyBinder.getUnprivilegedService(Context.ACTIVITY_SERVICE));
+        } else {
+            return ActivityManagerNative.asInterface(ProxyBinder.getUnprivilegedService(Context.ACTIVITY_SERVICE));
         }
     }
 

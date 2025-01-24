@@ -27,16 +27,15 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBar;
+import androidx.collection.SimpleArrayMap;
 import androidx.collection.SparseArrayCompat;
 import androidx.core.content.ContextCompat;
-import androidx.core.util.Pair;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -69,10 +68,12 @@ import io.github.muntashirakon.AppManager.self.SelfPermissions;
 import io.github.muntashirakon.AppManager.self.imagecache.ImageLoader;
 import io.github.muntashirakon.AppManager.settings.Ops;
 import io.github.muntashirakon.AppManager.shortcut.CreateShortcutDialogFragment;
+import io.github.muntashirakon.util.AdapterUtils;
 import io.github.muntashirakon.AppManager.utils.PackageUtils;
 import io.github.muntashirakon.AppManager.utils.UIUtils;
 import io.github.muntashirakon.AppManager.utils.Utils;
 import io.github.muntashirakon.dialog.TextInputDropdownDialogBuilder;
+import io.github.muntashirakon.util.UiUtils;
 import io.github.muntashirakon.widget.MaterialAutoCompleteTextView;
 
 // Copyright 2020 Muntashir Al-Islam
@@ -238,8 +239,7 @@ public class ActivityInterceptor extends BaseActivity {
                     showResetIntentButton(true);
                     refreshUI();
                 } catch (Exception e) {
-                    Toast.makeText(ActivityInterceptor.this, e.getMessage(),
-                            Toast.LENGTH_SHORT).show();
+                    UIUtils.displayShortToast(e.getMessage());
                     e.printStackTrace();
                 }
             }
@@ -312,9 +312,7 @@ public class ActivityInterceptor extends BaseActivity {
 
                 refreshUI();
                 Uri uri = data == null ? null : data.getData();
-                Toast.makeText(ActivityInterceptor.this,
-                        String.format("%s: (%s)", getString(R.string.activity_result), uri),
-                        Toast.LENGTH_LONG).show();
+                UIUtils.displayLongToast("%s: (%s)", getString(R.string.activity_result), uri);
             });
 
     @Override
@@ -324,7 +322,7 @@ public class ActivityInterceptor extends BaseActivity {
         findViewById(R.id.progress_linear).setVisibility(View.GONE);
         // Get Intent
         Intent intent = new Intent(getIntent());
-        mUseRoot = Ops.isRoot() && intent.getBooleanExtra(EXTRA_ROOT, false);
+        mUseRoot = Ops.isWorkingUidRoot() && intent.getBooleanExtra(EXTRA_ROOT, false);
         mUserHandle = intent.getIntExtra(EXTRA_USER_HANDLE, UserHandleHidden.myUserId());
         intent.removeExtra(EXTRA_ROOT);
         intent.removeExtra(EXTRA_USER_HANDLE);
@@ -457,16 +455,16 @@ public class ActivityInterceptor extends BaseActivity {
     }
 
     @NonNull
-    private List<Pair<String, Object>> getExtras() {
+    private SimpleArrayMap<String, Object> getExtras() {
         Bundle intentBundle;
         if (mMutableIntent == null || (intentBundle = mMutableIntent.getExtras()) == null) {
-            return Collections.emptyList();
+            return new SimpleArrayMap<>(0);
         }
-        List<Pair<String, Object>> extras = new ArrayList<>();
+        SimpleArrayMap<String, Object> extras = new SimpleArrayMap<>();
         for (String extraKey : intentBundle.keySet()) {
             Object extraValue = intentBundle.get(extraKey);
             if (extraValue == null) continue;
-            extras.add(new Pair<>(extraKey, extraValue));
+            extras.put(extraKey, extraValue);
         }
         return extras;
     }
@@ -526,7 +524,7 @@ public class ActivityInterceptor extends BaseActivity {
     private void checkAndShowMatchingActivities() {
         if (mMutableIntent == null) return;
         List<ResolveInfo> resolveInfo = getMatchingActivities();
-        if (resolveInfo.size() < 1) {
+        if (resolveInfo.isEmpty()) {
             mResendIntentButton.setEnabled(false);
             mActivitiesHeader.setVisibility(View.GONE);
         } else {
@@ -544,7 +542,7 @@ public class ActivityInterceptor extends BaseActivity {
         }
         if (mUseRoot || SelfPermissions.checkCrossUserPermission(mUserHandle, false)) {
             try {
-                return PackageManagerCompat.queryIntentActivities(this, mMutableIntent, 0, mUserHandle);
+                return PackageManagerCompat.queryIntentActivities(this, mMutableIntent, PackageManager.MATCH_ALL, mUserHandle);
             } catch (RemoteException e) {
                 e.printStackTrace();
             }
@@ -571,7 +569,7 @@ public class ActivityInterceptor extends BaseActivity {
         // Setup root
         MaterialCheckBox useRootCheckBox = findViewById(R.id.use_root);
         useRootCheckBox.setChecked(mUseRoot);
-        useRootCheckBox.setVisibility(Ops.isRoot() ? View.VISIBLE : View.GONE);
+        useRootCheckBox.setVisibility(Ops.isWorkingUidRoot() ? View.VISIBLE : View.GONE);
         useRootCheckBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (mUseRoot != isChecked) {
                 mUseRoot = isChecked;
@@ -581,65 +579,79 @@ public class ActivityInterceptor extends BaseActivity {
         // Setup identifier
         TextInputLayout idLayout = findViewById(R.id.type_id_layout);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            idLayout.setEndIconOnClickListener(v -> mIdView.setText(UUID.randomUUID().toString()));
+            idLayout.setEndIconOnClickListener(v -> {
+                mIdView.setText(UUID.randomUUID().toString());
+                mIdView.requestFocus();
+            });
         } else idLayout.setVisibility(View.GONE);
 
         // Setup categories
-        findViewById(R.id.intent_categories_add_btn).setOnClickListener(v ->
-                new TextInputDropdownDialogBuilder(this, R.string.category)
-                        .setTitle(R.string.category)
-                        .setDropdownItems(INTENT_CATEGORIES, -1, true)
-                        .setNegativeButton(R.string.cancel, null)
-                        .setPositiveButton(R.string.ok, (dialog, which, inputText, isChecked) -> {
-                            if (!TextUtils.isEmpty(inputText)) {
-                                //noinspection ConstantConditions
-                                mMutableIntent.addCategory(inputText.toString().trim());
-                                mCategoriesAdapter.setDefaultList(mMutableIntent.getCategories());
-                                showTextViewIntentData(null);
-                            }
-                        })
-                        .show());
+        MaterialButton addCategoriesButton = findViewById(R.id.intent_categories_add_btn);
+        addCategoriesButton.setOnClickListener(v -> {
+            UiUtils.fixFocus(addCategoriesButton);
+            new TextInputDropdownDialogBuilder(this, R.string.category)
+                    .setTitle(R.string.category)
+                    .setDropdownItems(INTENT_CATEGORIES, -1, true)
+                    .setNegativeButton(R.string.cancel, null)
+                    .setPositiveButton(R.string.ok, (dialog, which, inputText, isChecked) -> {
+                        if (!TextUtils.isEmpty(inputText)) {
+                            //noinspection ConstantConditions
+                            mMutableIntent.addCategory(inputText.toString().trim());
+                            mCategoriesAdapter.setDefaultList(mMutableIntent.getCategories());
+                            showTextViewIntentData(null);
+                            showResetIntentButton(true);
+                        }
+                    })
+                    .show();
+        });
         RecyclerView categoriesRecyclerView = findViewById(R.id.intent_categories);
         categoriesRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         mCategoriesAdapter = new CategoriesRecyclerViewAdapter(this);
         categoriesRecyclerView.setAdapter(mCategoriesAdapter);
 
         // Setup flags
-        findViewById(R.id.intent_flags_add_btn).setOnClickListener(v ->
-                new TextInputDropdownDialogBuilder(this, R.string.flags)
-                        .setTitle(R.string.flags)
-                        .setDropdownItems(getAllFlags(), -1, true)
-                        .setNegativeButton(R.string.cancel, null)
-                        .setPositiveButton(R.string.ok, (dialog, which, inputText, isChecked) -> {
-                            if (!TextUtils.isEmpty(inputText) && mMutableIntent != null) {
-                                int i = getFlagIndex(String.valueOf(inputText).trim());
-                                if (i >= 0) {
-                                    mMutableIntent.addFlags(INTENT_FLAG_TO_STRING.keyAt(i));
-                                } else {
-                                    try {
-                                        int flag = IntegerCompat.decode(String.valueOf(inputText).trim());
-                                        mMutableIntent.addFlags(flag);
-                                    } catch (NumberFormatException e) {
-                                        return;
-                                    }
+        MaterialButton addFlagsButton = findViewById(R.id.intent_flags_add_btn);
+        addFlagsButton.setOnClickListener(v -> {
+            UiUtils.fixFocus(addFlagsButton);
+            new TextInputDropdownDialogBuilder(this, R.string.flags)
+                    .setTitle(R.string.flags)
+                    .setDropdownItems(getAllFlags(), -1, true)
+                    .setNegativeButton(R.string.cancel, null)
+                    .setPositiveButton(R.string.ok, (dialog, which, inputText, isChecked) -> {
+                        if (!TextUtils.isEmpty(inputText) && mMutableIntent != null) {
+                            int i = getFlagIndex(String.valueOf(inputText).trim());
+                            if (i >= 0) {
+                                mMutableIntent.addFlags(INTENT_FLAG_TO_STRING.keyAt(i));
+                            } else {
+                                try {
+                                    int flag = IntegerCompat.decode(String.valueOf(inputText).trim());
+                                    mMutableIntent.addFlags(flag);
+                                } catch (NumberFormatException e) {
+                                    return;
                                 }
-                                mFlagsAdapter.setDefaultList(getFlags());
-                                showTextViewIntentData(null);
                             }
-                        })
-                        .show());
+                            mFlagsAdapter.setDefaultList(getFlags());
+                            showTextViewIntentData(null);
+                            showResetIntentButton(true);
+                        }
+                    })
+                    .show();
+        });
         RecyclerView flagsRecyclerView = findViewById(R.id.intent_flags);
         flagsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         mFlagsAdapter = new FlagsRecyclerViewAdapter(this);
         flagsRecyclerView.setAdapter(mFlagsAdapter);
 
         // Setup extras
-        findViewById(R.id.intent_extras_add_btn).setOnClickListener(v -> {
+        MaterialButton addExtrasButton = findViewById(R.id.intent_extras_add_btn);
+        addExtrasButton.setOnClickListener(v -> {
+            UiUtils.fixFocus(addExtrasButton);
             AddIntentExtraFragment fragment = new AddIntentExtraFragment();
             fragment.setOnSaveListener((mode, prefItem) -> {
                 if (mMutableIntent != null) {
                     IntentCompat.addToIntent(mMutableIntent, prefItem);
                     mExtrasAdapter.setDefaultList(getExtras());
+                    showResetIntentButton(true);
                 }
             });
             Bundle args = new Bundle();
@@ -668,11 +680,13 @@ public class ActivityInterceptor extends BaseActivity {
 
         // Send Intent on clicking the resend intent button
         mResendIntentButton.setOnClickListener(v -> {
+            UiUtils.fixFocus(mResendIntentButton);
             if (mMutableIntent == null) return;
             launchIntent(mMutableIntent, mRequestedComponent == null);
         });
         // Reset Intent data on clicking the reset intent button
         mResetIntentButton.setOnClickListener(v -> {
+            UiUtils.fixFocus(mResetIntentButton);
             mAreTextWatchersActive = false;
             showInitialIntent(false);
             mAreTextWatchersActive = true;
@@ -719,23 +733,23 @@ public class ActivityInterceptor extends BaseActivity {
         });
         mClassNameView.addTextChangedListener(new IntentUpdateTextWatcher(mClassNameView) {
             @Override
-            protected void onUpdateIntent(String modifiedContent) {
+            protected void onUpdateIntent(String modifiedComponent) {
                 if (mMutableIntent == null) return;
+                if (TextUtils.isEmpty(modifiedComponent)) {
+                    mRequestedComponent = null;
+                    mMutableIntent.setComponent(null);
+                    return;
+                }
                 String packageName = mMutableIntent.getPackage();
-                if (packageName == null && !TextUtils.isEmpty(modifiedContent)) {
+                if (packageName == null) {
                     UIUtils.displayShortToast(R.string.set_package_name_first);
                     mAreTextWatchersActive = false;
                     mClassNameView.setText(null);
                     mAreTextWatchersActive = true;
                     return;
                 }
-                if (TextUtils.isEmpty(modifiedContent)) {
-                    mRequestedComponent = null;
-                    mMutableIntent.setComponent(null);
-                    return;
-                }
-                mRequestedComponent = new ComponentName(packageName, (modifiedContent.startsWith(".") ?
-                        packageName : "") + modifiedContent);
+                mRequestedComponent = new ComponentName(packageName, (modifiedComponent.startsWith(".") ?
+                        packageName : "") + modifiedComponent);
                 mMutableIntent.setComponent(mRequestedComponent);
             }
         });
@@ -814,7 +828,7 @@ public class ActivityInterceptor extends BaseActivity {
                 StringTokenizer tokenizer = new StringTokenizer(line, "\t");
                 switch (tokenizer.nextToken()) {
                     case "ROOT":
-                        mUseRoot = Ops.isRoot() && Boolean.parseBoolean(tokenizer.nextToken());
+                        mUseRoot = Ops.isWorkingUidRoot() && Boolean.parseBoolean(tokenizer.nextToken());
                         ++parseCount;
                         break;
                     case "USER":
@@ -930,8 +944,13 @@ public class ActivityInterceptor extends BaseActivity {
                     // TODO: 4/2/22 Support sending activity result back to the original app
                     ActivityManagerCompat.startActivity(intent, mUserHandle);
                 } else {
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    mIntentLauncher.launch(intent);
+                    try {
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        mIntentLauncher.launch(intent);
+                    } catch (SecurityException e) {
+                        // TODO: 4/6/24 Support sending activity result back to the original app
+                        ActivityManagerCompat.startActivity(intent, mUserHandle);
+                    }
                 }
             }
         } catch (Throwable th) {
@@ -1087,9 +1106,7 @@ public class ActivityInterceptor extends BaseActivity {
         }
 
         public void setDefaultList(@Nullable Collection<String> categories) {
-            mCategories.clear();
-            if (categories != null) mCategories.addAll(categories);
-            notifyDataSetChanged();
+            AdapterUtils.notifyDataSetChanged(this, mCategories, categories);
         }
 
         @NonNull
@@ -1105,10 +1122,12 @@ public class ActivityInterceptor extends BaseActivity {
             holder.title.setText(category);
             holder.title.setTextIsSelectable(true);
             holder.actionIcon.setOnClickListener(v -> {
+                UiUtils.fixFocus(holder.actionIcon);
                 if (mActivity.mMutableIntent != null) {
                     mActivity.mMutableIntent.removeCategory(category);
                     setDefaultList(mActivity.mMutableIntent.getCategories());
                     mActivity.showTextViewIntentData(null);
+                    mActivity.showResetIntentButton(true);
                 }
             });
         }
@@ -1139,9 +1158,7 @@ public class ActivityInterceptor extends BaseActivity {
         }
 
         public void setDefaultList(@Nullable Collection<String> flags) {
-            mFlags.clear();
-            if (flags != null) mFlags.addAll(flags);
-            notifyDataSetChanged();
+            AdapterUtils.notifyDataSetChanged(this, mFlags, flags);
         }
 
         @NonNull
@@ -1157,11 +1174,13 @@ public class ActivityInterceptor extends BaseActivity {
             holder.title.setText(flagName);
             holder.title.setTextIsSelectable(true);
             holder.actionIcon.setOnClickListener(v -> {
+                UiUtils.fixFocus(holder.actionIcon);
                 int i = INTENT_FLAG_TO_STRING.indexOfValue(flagName);
                 if (i >= 0 && mActivity.mMutableIntent != null) {
                     IntentCompat.removeFlags(mActivity.mMutableIntent, INTENT_FLAG_TO_STRING.keyAt(i));
                     setDefaultList(mActivity.getFlags());
                     mActivity.showTextViewIntentData(null);
+                    mActivity.showResetIntentButton(true);
                 }
             });
         }
@@ -1184,17 +1203,15 @@ public class ActivityInterceptor extends BaseActivity {
     }
 
     private static class ExtrasRecyclerViewAdapter extends RecyclerView.Adapter<ExtrasRecyclerViewAdapter.ViewHolder> {
-        private final List<Pair<String, Object>> mExtras = new ArrayList<>();
+        private final SimpleArrayMap<String, Object> mExtras = new SimpleArrayMap<>(0);
         private final ActivityInterceptor mActivity;
 
         public ExtrasRecyclerViewAdapter(ActivityInterceptor activity) {
             mActivity = activity;
         }
 
-        public void setDefaultList(@Nullable List<Pair<String, Object>> extras) {
-            mExtras.clear();
-            if (extras != null) mExtras.addAll(extras);
-            notifyDataSetChanged();
+        public void setDefaultList(@Nullable SimpleArrayMap<String, Object> extras) {
+            AdapterUtils.notifyDataSetChanged(this, mExtras, extras);
         }
 
         @NonNull
@@ -1206,17 +1223,23 @@ public class ActivityInterceptor extends BaseActivity {
 
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-            Pair<String, Object> extraItem = mExtras.get(position);
-            holder.title.setText(extraItem.first);
+            String key = mExtras.keyAt(position);
+            Object value = mExtras.valueAt(position);
+            holder.title.setText(key);
             holder.title.setTextIsSelectable(true);
-            holder.subtitle.setText(extraItem.second.toString());
+            holder.subtitle.setText(value.toString());
             holder.subtitle.setTextIsSelectable(true);
             holder.actionIcon.setOnClickListener(v -> {
+                UiUtils.fixFocus(holder.actionIcon);
                 if (mActivity.mMutableIntent != null) {
-                    mActivity.mMutableIntent.removeExtra(extraItem.first);
+                    mActivity.mMutableIntent.removeExtra(key);
                     mActivity.showTextViewIntentData(null);
-                    mExtras.remove(position);
-                    notifyDataSetChanged();
+                    int pos = mExtras.indexOfKey(key);
+                    if (pos >= 0) {
+                        mExtras.removeAt(pos);
+                        notifyItemRemoved(pos);
+                    }
+                    mActivity.showResetIntentButton(true);
                 }
             });
         }
@@ -1255,9 +1278,7 @@ public class ActivityInterceptor extends BaseActivity {
         }
 
         public void setDefaultList(@Nullable List<ResolveInfo> matchingActivities) {
-            mMatchingActivities.clear();
-            if (matchingActivities != null) mMatchingActivities.addAll(matchingActivities);
-            notifyDataSetChanged();
+            AdapterUtils.notifyDataSetChanged(this, mMatchingActivities, matchingActivities);
         }
 
         @NonNull
@@ -1280,6 +1301,7 @@ public class ActivityInterceptor extends BaseActivity {
             holder.icon.setTag(tag);
             ImageLoader.getInstance().displayImage(tag, info, holder.icon);
             holder.actionIcon.setOnClickListener(v -> {
+                UiUtils.fixFocus(holder.actionIcon);
                 Intent intent = new Intent(mActivity.mMutableIntent);
                 intent.setClassName(info.packageName, activityName);
                 IntentCompat.removeFlags(intent, Intent.FLAG_ACTIVITY_FORWARD_RESULT);

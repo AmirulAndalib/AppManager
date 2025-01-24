@@ -44,6 +44,7 @@ import io.github.muntashirakon.AppManager.misc.ListOptions;
 import io.github.muntashirakon.AppManager.self.filecache.FileCache;
 import io.github.muntashirakon.AppManager.self.imagecache.ImageLoader;
 import io.github.muntashirakon.AppManager.settings.Prefs;
+import io.github.muntashirakon.AppManager.utils.AlphanumComparator;
 import io.github.muntashirakon.AppManager.utils.ExUtils;
 import io.github.muntashirakon.AppManager.utils.FileUtils;
 import io.github.muntashirakon.AppManager.utils.ThreadUtils;
@@ -195,11 +196,13 @@ public class FmViewModel extends AndroidViewModel implements ListOptions.ListOpt
     }
 
     public void setScrollPosition(Uri uri, int currentScrollPosition) {
+        Log.d(TAG, "Store: Scroll position = %d, uri = %s", currentScrollPosition, uri);
         mPathScrollPositionMap.put(uri, currentScrollPosition);
     }
 
     public int getCurrentScrollPosition() {
         Integer scrollPosition = mPathScrollPositionMap.get(mCurrentUri);
+        Log.d(TAG, "Load: Scroll position = %d, uri = %s", scrollPosition, mCurrentUri);
         return scrollPosition != null ? scrollPosition : 0;
     }
 
@@ -499,7 +502,7 @@ public class FmViewModel extends AndroidViewModel implements ListOptions.ListOpt
             return;
         }
         // Sort by name first
-        Collections.sort(filteredList, (o1, o2) -> o1.getName().compareToIgnoreCase(o2.getName()));
+        Collections.sort(filteredList, (o1, o2) -> AlphanumComparator.compareStringIgnoreCase(o1.getName(), o2.getName()));
         if (mSortBy == FmListOptions.SORT_BY_NAME) {
             if (mReverseSort) {
                 Collections.reverse(filteredList);
@@ -552,8 +555,11 @@ public class FmViewModel extends AndroidViewModel implements ListOptions.ListOpt
             // TODO: 31/5/23 Handle read-only
             Path filePath = Paths.getStrict(mOptions.uri);
             Path cachedPath = Paths.get(mFileCache.getCachedFile(filePath));
+            String type = cachedPath.getType();
             int vfsId;
-            if (FileUtils.isZip(cachedPath)) {
+            if (ContentType.APK.getMimeType().equals(type)) {
+                vfsId = VirtualFileSystem.mount(filePath.getUri(), cachedPath, ContentType.APK.getMimeType());
+            } else if (FileUtils.isZip(cachedPath)) {
                 vfsId = VirtualFileSystem.mount(filePath.getUri(), cachedPath, ContentType.ZIP.getMimeType());
             } else if (DexUtils.isDex(cachedPath)) {
                 vfsId = VirtualFileSystem.mount(filePath.getUri(), cachedPath, ContentType2.DEX.getMimeType());

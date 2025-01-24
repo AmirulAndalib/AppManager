@@ -4,15 +4,14 @@ package io.github.muntashirakon.AppManager.main;
 
 import static io.github.muntashirakon.AppManager.compat.PackageManagerCompat.MATCH_UNINSTALLED_PACKAGES;
 import static io.github.muntashirakon.AppManager.utils.UIUtils.displayLongToast;
+import static io.github.muntashirakon.AppManager.utils.UIUtils.displayShortToast;
 
-import android.Manifest;
-import android.app.usage.UsageStatsManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
-import android.os.Build;
 import android.os.RemoteException;
 import android.os.UserHandleHidden;
 import android.text.Spannable;
@@ -24,9 +23,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.SectionIndexer;
 import android.widget.TextView;
-import android.widget.Toast;
 
-import androidx.annotation.ColorInt;
 import androidx.annotation.GuardedBy;
 import androidx.annotation.NonNull;
 import androidx.annotation.UiThread;
@@ -35,17 +32,17 @@ import androidx.core.content.ContextCompat;
 
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import com.google.android.material.divider.MaterialDivider;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.TimeUnit;
 
 import io.github.muntashirakon.AppManager.R;
 import io.github.muntashirakon.AppManager.apk.installer.PackageInstallerActivity;
 import io.github.muntashirakon.AppManager.apk.installer.PackageInstallerCompat;
+import io.github.muntashirakon.AppManager.backup.dialog.BackupRestoreDialogFragment;
 import io.github.muntashirakon.AppManager.compat.ApplicationInfoCompat;
 import io.github.muntashirakon.AppManager.compat.PackageManagerCompat;
 import io.github.muntashirakon.AppManager.db.entity.Backup;
@@ -53,6 +50,7 @@ import io.github.muntashirakon.AppManager.details.AppDetailsActivity;
 import io.github.muntashirakon.AppManager.self.SelfPermissions;
 import io.github.muntashirakon.AppManager.self.imagecache.ImageLoader;
 import io.github.muntashirakon.AppManager.settings.FeatureController;
+import io.github.muntashirakon.AppManager.types.UserPackagePair;
 import io.github.muntashirakon.AppManager.users.UserInfo;
 import io.github.muntashirakon.AppManager.users.Users;
 import io.github.muntashirakon.AppManager.utils.ArrayUtils;
@@ -62,6 +60,7 @@ import io.github.muntashirakon.AppManager.utils.UIUtils;
 import io.github.muntashirakon.AppManager.utils.appearance.ColorCodes;
 import io.github.muntashirakon.dialog.SearchableItemsDialogBuilder;
 import io.github.muntashirakon.io.Paths;
+import io.github.muntashirakon.util.AdapterUtils;
 import io.github.muntashirakon.widget.MultiSelectionView;
 
 public class MainRecyclerAdapter extends MultiSelectionView.Adapter<MainRecyclerAdapter.ViewHolder>
@@ -69,34 +68,24 @@ public class MainRecyclerAdapter extends MultiSelectionView.Adapter<MainRecycler
     private static final String sSections = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
     private final MainActivity mActivity;
-    private final PackageManager mPackageManager;
     private String mSearchQuery;
     @GuardedBy("mAdapterList")
     private final List<ApplicationItem> mAdapterList = new ArrayList<>();
 
-    private final int mCardColor;
-    private final int mDefaultIndicatorColor;
     private final int mColorGreen;
     private final int mColorOrange;
     private final int mColorPrimary;
     private final int mColorSecondary;
     private final int mQueryStringHighlight;
-    @ColorInt
-    private final int mHighlightColor;
 
     MainRecyclerAdapter(@NonNull MainActivity activity) {
         super();
         mActivity = activity;
-        mPackageManager = activity.getPackageManager();
-
-        mCardColor = ColorCodes.getListItemColor1(activity);
-        mDefaultIndicatorColor = ColorCodes.getListItemDefaultIndicatorColor(activity);
-        mColorGreen = ContextCompat.getColor(mActivity, io.github.muntashirakon.ui.R.color.stopped);
-        mColorOrange = ContextCompat.getColor(mActivity, io.github.muntashirakon.ui.R.color.orange);
-        mColorPrimary = ContextCompat.getColor(mActivity, io.github.muntashirakon.ui.R.color.textColorPrimary);
-        mColorSecondary = ContextCompat.getColor(mActivity, io.github.muntashirakon.ui.R.color.textColorSecondary);
-        mQueryStringHighlight = ColorCodes.getQueryStringHighlightColor(mActivity);
-        mHighlightColor = ColorCodes.getListItemSelectionColor(activity);
+        mColorGreen = ContextCompat.getColor(activity, io.github.muntashirakon.ui.R.color.stopped);
+        mColorOrange = ContextCompat.getColor(activity, io.github.muntashirakon.ui.R.color.orange);
+        mColorPrimary = ContextCompat.getColor(activity, io.github.muntashirakon.ui.R.color.textColorPrimary);
+        mColorSecondary = ContextCompat.getColor(activity, io.github.muntashirakon.ui.R.color.textColorSecondary);
+        mQueryStringHighlight = ColorCodes.getQueryStringHighlightColor(activity);
     }
 
     @GuardedBy("mAdapterList")
@@ -104,17 +93,10 @@ public class MainRecyclerAdapter extends MultiSelectionView.Adapter<MainRecycler
     void setDefaultList(List<ApplicationItem> list) {
         if (mActivity.viewModel == null) return;
         synchronized (mAdapterList) {
-            mAdapterList.clear();
-            mAdapterList.addAll(list);
             mSearchQuery = mActivity.viewModel.getSearchQuery();
-            notifyDataSetChanged();
+            AdapterUtils.notifyDataSetChanged(this, mAdapterList, list);
             notifySelectionChange();
         }
-    }
-
-    @Override
-    public int getHighlightColor() {
-        return mHighlightColor;
     }
 
     @GuardedBy("mAdapterList")
@@ -198,8 +180,10 @@ public class MainRecyclerAdapter extends MultiSelectionView.Adapter<MainRecycler
         synchronized (mAdapterList) {
             item = mAdapterList.get(position);
         }
+        MaterialCardView cardView = holder.itemView;
+        Context context = cardView.getContext();
         // Add click listeners
-        holder.itemView.setOnClickListener(v -> {
+        cardView.setOnClickListener(v -> {
             // If selection mode is on, select/deselect the current item instead of the default behaviour
             if (isInSelectionMode()) {
                 toggleSelection(position);
@@ -207,7 +191,7 @@ public class MainRecyclerAdapter extends MultiSelectionView.Adapter<MainRecycler
             }
             handleClick(item);
         });
-        holder.itemView.setOnLongClickListener(v -> {
+        cardView.setOnLongClickListener(v -> {
             // Long click listener: Select/deselect an app.
             // 1) Turn selection mode on if this is the first item in the selection list
             // 2) Select between last selection position and this position (inclusive) if selection mode is on
@@ -222,61 +206,44 @@ public class MainRecyclerAdapter extends MultiSelectionView.Adapter<MainRecycler
             return true;
         });
         holder.icon.setOnClickListener(v -> toggleSelection(position));
-        holder.itemView.setCardBackgroundColor(mCardColor);
-        // Divider colors: disabled > regular
+        // Box-stroke colors: uninstalled > disabled > force-stopped > regular
         if (!item.isInstalled) {
-            holder.divider.setDividerColor(ColorCodes.getAppUninstalledIndicatorColor(mActivity));
+            cardView.setStrokeColor(ColorCodes.getAppUninstalledIndicatorColor(context));
         } else if (item.isDisabled) {
-            holder.divider.setDividerColor(ColorCodes.getAppDisabledIndicatorColor(mActivity));
-        } else if ((item.flags & ApplicationInfo.FLAG_STOPPED) != 0) { // Force-stopped: Dark cyan
-            holder.divider.setDividerColor(ColorCodes.getAppForceStoppedIndicatorColor(mActivity));
+            cardView.setStrokeColor(ColorCodes.getAppDisabledIndicatorColor(context));
+        } else if (item.isStopped) {
+            cardView.setStrokeColor(ColorCodes.getAppForceStoppedIndicatorColor(context));
         } else {
-            holder.divider.setDividerColor(mDefaultIndicatorColor);
+            cardView.setStrokeColor(Color.TRANSPARENT);
         }
-        // Add yellow star if the app is in debug mode
+        // Display yellow star if the app is in debug mode
         holder.debugIcon.setVisibility(item.debuggable ? View.VISIBLE : View.INVISIBLE);
-        // Set version name
-        holder.version.setText(item.versionName);
-        // Set date and (if available,) days between first install and last update
-        String lastUpdateDate = DateUtils.formatDate(mActivity, item.lastUpdateTime);
+        // Set date and (if available,) days between first installation and last update
+        String lastUpdateDate = DateUtils.formatDate(context, item.lastUpdateTime);
         if (item.firstInstallTime == item.lastUpdateTime) {
             holder.date.setText(lastUpdateDate);
         } else {
-            long days = TimeUnit.DAYS.convert(item.lastUpdateTime - item.firstInstallTime, TimeUnit.MILLISECONDS);
-            SpannableString ssDate = new SpannableString(mActivity.getResources()
+            long days = item.diffInstallUpdateInDays;
+            SpannableString ssDate = new SpannableString(context.getResources()
                     .getQuantityString(R.plurals.main_list_date_days, (int) days, lastUpdateDate, days));
             ssDate.setSpan(new RelativeSizeSpan(.8f), lastUpdateDate.length(),
                     ssDate.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
             holder.date.setText(ssDate);
         }
         // Set date color to orange if app can read logs (and accepted)
-        if (mPackageManager.checkPermission(Manifest.permission.READ_LOGS, item.packageName)
-                == PackageManager.PERMISSION_GRANTED) {
-            holder.date.setTextColor(mColorOrange);
-        } else holder.date.setTextColor(mColorSecondary);
+        holder.date.setTextColor(item.canReadLogs ? mColorOrange : mColorSecondary);
         if (item.isInstalled) {
-            // Set kernel user ID
-            String sharedId;
-            if (item.userIds.length > 1) {
-                int appId = UserHandleHidden.getAppId(item.uid);
-                sharedId = item.userIds.length + "+" + appId;
-            } else sharedId = String.valueOf(item.uid);
-            holder.sharedId.setText(sharedId);
-            // Set kernel user ID text color to orange if the package is shared
-            if (item.sharedUserId != null) {
-                holder.sharedId.setTextColor(mColorOrange);
-            } else holder.sharedId.setTextColor(mColorSecondary);
-        } else holder.sharedId.setText("");
+            // Set UID
+            if (item.uidOrAppIds != null) {
+                holder.userId.setText(item.uidOrAppIds);
+            }
+            // Set UID text color to orange if the package is shared
+            holder.userId.setTextColor(item.sharedUserId != null ? mColorOrange : mColorSecondary);
+        } else holder.userId.setText("");
         if (item.sha != null) {
             // Set issuer
-            String issuer;
-            try {
-                issuer = "CN=" + (item.sha.first).split("CN=", 2)[1];
-            } catch (ArrayIndexOutOfBoundsException e) {
-                issuer = item.sha.first;
-            }
             holder.issuer.setVisibility(View.VISIBLE);
-            holder.issuer.setText(issuer);
+            holder.issuer.setText(item.issuerShortName);
             // Set signature type
             holder.sha.setVisibility(View.VISIBLE);
             holder.sha.setText(item.sha.second);
@@ -293,7 +260,7 @@ public class MainRecyclerAdapter extends MultiSelectionView.Adapter<MainRecycler
             holder.label.setText(UIUtils.getHighlightedText(item.label, mSearchQuery, mQueryStringHighlight));
         } else holder.label.setText(item.label);
         // Set app label color to red if clearing user data not allowed
-        if (item.isInstalled && (item.flags & ApplicationInfo.FLAG_ALLOW_CLEAR_USER_DATA) == 0) {
+        if (item.isInstalled && !item.allowClearingUserData) {
             holder.label.setTextColor(Color.RED);
         } else holder.label.setTextColor(mColorPrimary);
         // Set package name
@@ -302,53 +269,29 @@ public class MainRecyclerAdapter extends MultiSelectionView.Adapter<MainRecycler
             holder.packageName.setText(UIUtils.getHighlightedText(item.packageName, mSearchQuery, mQueryStringHighlight));
         } else holder.packageName.setText(item.packageName);
         // Set package name color to orange if the app has known tracker components
-        if (item.trackerCount > 0)
-            holder.packageName.setTextColor(ColorCodes.getComponentTrackerIndicatorColor(mActivity));
-        else holder.packageName.setTextColor(mColorSecondary);
+        if (item.trackerCount > 0) {
+            holder.packageName.setTextColor(ColorCodes.getComponentTrackerIndicatorColor(context));
+        } else holder.packageName.setTextColor(mColorSecondary);
         // Set version (along with HW accelerated, debug and test only flags)
-        CharSequence version = holder.version.getText();
-        if (item.isInstalled && (item.flags & ApplicationInfo.FLAG_HARDWARE_ACCELERATED) == 0)
-            version = "_" + version;
-        if ((item.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) version = "debug" + version;
-        if ((item.flags & ApplicationInfo.FLAG_TEST_ONLY) != 0) version = "~" + version;
-        holder.version.setText(version);
+        holder.version.setText(item.versionTag);
         // Set version color to dark cyan if the app is inactive
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            UsageStatsManager mUsageStats;
-            mUsageStats = mActivity.getSystemService(UsageStatsManager.class);
-            if (mUsageStats != null && mUsageStats.isAppInactive(item.packageName))
-                holder.version.setTextColor(mColorGreen);
-            else holder.version.setTextColor(mColorSecondary);
-        }
+        holder.version.setTextColor(item.isAppInactive ? mColorGreen : mColorSecondary);
         // Set app type: system or user app (along with large heap, suspended, multi-arch,
         // has code, vm safe mode)
-        String isSystemApp;
         if (item.isInstalled) {
-            if ((item.flags & ApplicationInfo.FLAG_SYSTEM) != 0)
-                isSystemApp = mActivity.getString(R.string.system);
-            else isSystemApp = mActivity.getString(R.string.user);
-            if ((item.flags & ApplicationInfo.FLAG_LARGE_HEAP) != 0) isSystemApp += "#";
-            if ((item.flags & ApplicationInfo.FLAG_SUSPENDED) != 0) isSystemApp += "°";
-            if ((item.flags & ApplicationInfo.FLAG_MULTIARCH) != 0) isSystemApp += "X";
-            if ((item.flags & ApplicationInfo.FLAG_HAS_CODE) == 0) isSystemApp += "0";
-            if ((item.flags & ApplicationInfo.FLAG_VM_SAFE_MODE) != 0) isSystemApp += "?";
+            String isSystemApp = context.getString(item.isSystem ? R.string.system : R.string.user) + item.appTypePostfix;
             holder.isSystemApp.setText(isSystemApp);
-            // Set app type text color to magenta if the app is persistent
-            if ((item.flags & ApplicationInfo.FLAG_PERSISTENT) != 0)
-                holder.isSystemApp.setTextColor(Color.MAGENTA);
-            else holder.isSystemApp.setTextColor(mColorSecondary);
         } else {
             holder.isSystemApp.setText("-");
-            holder.isSystemApp.setTextColor(mColorSecondary);
         }
+        // Set app type text color to magenta if the app is persistent
+        holder.isSystemApp.setTextColor(item.isPersistent ? Color.MAGENTA : mColorSecondary);
         // Set SDK
-        if (item.isInstalled) {
-            holder.size.setText(String.format(Locale.ROOT, "SDK %d", item.sdk));
+        if (item.sdkString != null) {
+            holder.size.setText(item.sdkString);
         } else holder.size.setText("-");
         // Set SDK color to orange if the app is using cleartext (e.g. HTTP) traffic
-        if ((item.flags & ApplicationInfo.FLAG_USES_CLEARTEXT_TRAFFIC) != 0) {
-            holder.size.setTextColor(mColorOrange);
-        } else holder.size.setTextColor(mColorSecondary);
+        holder.size.setTextColor(item.usesCleartextTraffic ? mColorOrange : mColorSecondary);
         // Check for backup
         if (item.backup != null) {
             holder.backupIndicator.setVisibility(View.VISIBLE);
@@ -359,34 +302,23 @@ public class MainRecyclerAdapter extends MultiSelectionView.Adapter<MainRecycler
             if (item.isInstalled) {
                 if (item.backup.versionCode >= item.versionCode) {
                     // Up-to-date backup
-                    indicatorColor = ColorCodes.getBackupLatestIndicatorColor(mActivity);
+                    indicatorColor = ColorCodes.getBackupLatestIndicatorColor(context);
                 } else {
                     // Outdated backup
-                    indicatorColor = ColorCodes.getBackupOutdatedIndicatorColor(mActivity);
+                    indicatorColor = ColorCodes.getBackupOutdatedIndicatorColor(context);
                 }
             } else {
                 // App not installed
-                indicatorColor = ColorCodes.getBackupUninstalledIndicatorColor(mActivity);
+                indicatorColor = ColorCodes.getBackupUninstalledIndicatorColor(context);
             }
             holder.backupIndicator.setTextColor(indicatorColor);
             Backup backup = item.backup;
-            long days = TimeUnit.DAYS.convert(System.currentTimeMillis() -
-                    backup.backupTime, TimeUnit.MILLISECONDS);
+            long days = item.lastBackupDays;
             holder.backupInfo.setText(String.format("%s: %s, %s %s",
-                    mActivity.getString(R.string.latest_backup), mActivity.getResources()
+                    context.getString(R.string.latest_backup), context.getResources()
                             .getQuantityString(R.plurals.usage_days, (int) days, days),
-                    mActivity.getString(R.string.version), backup.versionName));
-            StringBuilder extBuilder = new StringBuilder();
-            if (backup.getFlags().backupApkFiles()) extBuilder.append("apk");
-            if (backup.getFlags().backupData()) {
-                if (extBuilder.length() > 0) extBuilder.append("+");
-                extBuilder.append("data");
-            }
-            if (backup.hasRules) {
-                if (extBuilder.length() > 0) extBuilder.append("+");
-                extBuilder.append("rules");
-            }
-            holder.backupInfoExt.setText(extBuilder.toString());
+                    context.getString(R.string.version), backup.versionName));
+            holder.backupInfoExt.setText(item.backupFlagsStr);
         } else {
             holder.backupIndicator.setVisibility(View.GONE);
             holder.backupInfo.setVisibility(View.GONE);
@@ -417,7 +349,7 @@ public class MainRecyclerAdapter extends MultiSelectionView.Adapter<MainRecycler
         synchronized (mAdapterList) {
             for (int i = 0; i < getItemCount(); i++) {
                 String item = mAdapterList.get(i).label;
-                if (item.length() > 0) {
+                if (!item.isEmpty()) {
                     if (item.charAt(0) == sSections.charAt(section))
                         return i;
                 }
@@ -449,7 +381,7 @@ public class MainRecyclerAdapter extends MultiSelectionView.Adapter<MainRecycler
                                 | PackageManagerCompat.MATCH_STATIC_SHARED_AND_SDK_LIBRARIES,
                         UserHandleHidden.myUserId());
             } catch (RemoteException | PackageManager.NameNotFoundException e) {
-                Toast.makeText(mActivity, R.string.app_not_installed, Toast.LENGTH_SHORT).show();
+                showBackupRestoreDialogOrAppNotInstalled(item);
                 return;
             }
             // 1. Check if the app was really uninstalled.
@@ -480,7 +412,7 @@ public class MainRecyclerAdapter extends MultiSelectionView.Adapter<MainRecycler
             // 3. The app might be uninstalled without clearing data
             if (ApplicationInfoCompat.isSystemApp(info)) {
                 // The app is a system app, there's no point in asking to uninstall it again
-                Toast.makeText(mActivity, R.string.app_not_installed, Toast.LENGTH_SHORT).show();
+                showBackupRestoreDialogOrAppNotInstalled(item);
                 return;
             }
             new MaterialAlertDialogBuilder(mActivity)
@@ -511,7 +443,7 @@ public class MainRecyclerAdapter extends MultiSelectionView.Adapter<MainRecycler
                 return;
             }
             // Outside our jurisdiction
-            Toast.makeText(mActivity, R.string.app_not_installed, Toast.LENGTH_SHORT).show();
+            showBackupRestoreDialogOrAppNotInstalled(item);
             return;
         }
         // More than a user, ask the user to select one
@@ -535,7 +467,22 @@ public class MainRecyclerAdapter extends MultiSelectionView.Adapter<MainRecycler
                 .show();
     }
 
-    static class ViewHolder extends MultiSelectionView.ViewHolder {
+    private void showBackupRestoreDialogOrAppNotInstalled(@NonNull ApplicationItem item) {
+        if (item.backup == null) {
+            // No backups
+            displayShortToast(R.string.app_not_installed);
+            return;
+        }
+        // Has backups
+        BackupRestoreDialogFragment fragment = BackupRestoreDialogFragment.getInstance(
+                Collections.singletonList(new UserPackagePair(
+                        item.packageName, UserHandleHidden.myUserId())));
+        fragment.setOnActionBeginListener(mode -> mActivity.showProgressIndicator(true));
+        fragment.setOnActionCompleteListener((mode, failedPackages) -> mActivity.showProgressIndicator(false));
+        fragment.show(mActivity.getSupportFragmentManager(), BackupRestoreDialogFragment.TAG);
+    }
+
+    public static class ViewHolder extends MultiSelectionView.ViewHolder {
         MaterialCardView itemView;
         AppCompatImageView icon;
         AppCompatImageView debugIcon;
@@ -545,13 +492,12 @@ public class MainRecyclerAdapter extends MultiSelectionView.Adapter<MainRecycler
         TextView isSystemApp;
         TextView date;
         TextView size;
-        TextView sharedId;
+        TextView userId;
         TextView issuer;
         TextView sha;
         TextView backupIndicator;
         TextView backupInfo;
         TextView backupInfoExt;
-        MaterialDivider divider;
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -564,13 +510,12 @@ public class MainRecyclerAdapter extends MultiSelectionView.Adapter<MainRecycler
             isSystemApp = itemView.findViewById(R.id.isSystem);
             date = itemView.findViewById(R.id.date);
             size = itemView.findViewById(R.id.size);
-            sharedId = itemView.findViewById(R.id.shareid);
+            userId = itemView.findViewById(R.id.shareid);
             issuer = itemView.findViewById(R.id.issuer);
             sha = itemView.findViewById(R.id.sha);
             backupIndicator = itemView.findViewById(R.id.backup_indicator);
             backupInfo = itemView.findViewById(R.id.backup_info);
             backupInfoExt = itemView.findViewById(R.id.backup_info_ext);
-            divider = itemView.findViewById(R.id.divider);
         }
     }
 }

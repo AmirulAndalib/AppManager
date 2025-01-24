@@ -40,12 +40,12 @@
     <string name="filter_apps_without_backups">Không có bản sao lưu</string>
     <string name="uninstalled_apps">Các ứng dụng đã gỡ cài đặt</string>
     <string name="specify_custom_name">Tuỳ chỉnh</string>
-    <string name="list_options">Liệt kê các tuỳ chọn</string>
+    <string name="list_options">Liệt kê các tùy chọn</string>
     <string name="reverse">Đảo ngược</string>
     <string name="os_version">Phiên bản HĐH</string>
     <string name="enable_disable_features">Bật/tắt các tính năng</string>
     <string name="working_on_adb_mode">Đang hoạt động trong chế độ ADB</string>
-    <string name="screen_lock_not_enabled">Vui lòng chọn một khoá màn hình trong cài đặt Android, hoặc xoá dữ liệu ứng dụng.</string>
+    <string name="screen_lock_not_enabled">Vui lòng chọn một khóa màn hình trong thiết đặt Android hoặc dọn dẹp dữ liệu ứng dụng.</string>
     <string name="isolated">Bị cô lập</string>
     <string name="installed_apps">Các ứng dụng đã cài đặt</string>
     <string name="restart_to_reflect_changes">Bạn phải khởi động lại thiết bị ngay lập tức để sử dụng các thay đổi mới.</string>
@@ -125,7 +125,7 @@
     <string name="advanced">Nâng cao</string>
     <string name="enabled">Đã bật</string>
     <string name="choose">Chọn</string>
-    <string name="clear_data_from_uninstalled_apps">Xoá dữ liệu của các ứng dụng đã gỡ cài đặt</string>
+    <string name="clear_data_from_uninstalled_apps">Dọn dữ liệu khỏi các ứng dụng đã gỡ cài đặt</string>
     <string name="users">Người dùng</string>
     <string name="languages">Ngôn ngữ</string>
     <string name="manufacturer">Nhà sản xuất</string>
@@ -133,9 +133,9 @@
     <string name="string_value">Giá trị xâu</string>
     <string name="saving_failed">Lưu thất bại, hãy thử lại.</string>
     <string name="saved_successfully">Đã lưu</string>
-    <string name="deletion_failed">Xoá thất bại</string>
+    <string name="deletion_failed">Xóa không được</string>
     <string name="deleted_successfully">Đã xoá</string>
-    <string name="delete">Xoá</string>
+    <string name="delete">Xóa</string>
     <string name="backup_restore">Sao lưu/Khôi phục</string>
     <string name="sort_by_wifi_data">Dữ liệu Wi-Fi</string>
     <string name="state_unknown">Chưa biết</string>
@@ -168,7 +168,7 @@
     <string name="loading">Đang tải…</string>
     <string name="search">Tìm kiếm</string>
     <string name="menu_apply_rules">Áp dụng các quy tắc</string>
-    <string name="menu_remove_rules">Xoá các quy tắc</string>
+    <string name="menu_remove_rules">Loại bỏ các quy tắc</string>
     <string name="failed_to_extract_apk_file">Không thể trích xuất tệp APK</string>
     <string name="share_apk">Chia sẻ APK</string>
     <string name="grant_usage_acess_message">Được sử dụng để hiển thị thông tin sử dụng ứng dụng.</string>
@@ -227,7 +227,7 @@
     </plurals>
     <string name="export_blocking_rules">Xuất các quy tắc chặn</string>
     <string name="disable_background">Ngăn chặn hoạt động trong nền</string>
-    <string name="clear_data">Xoá dữ liệu</string>
+    <string name="clear_data">Dọn sạch dữ liệu</string>
     <string name="user_and_uid">Người dùng: <xliff:g id="user_name" example="root">%1$s</xliff:g> (<xliff:g id="user_id" example="0">%2$d</xliff:g>)</string>
     <string name="user_with_id">Người dùng: <xliff:g id="user_id" example="0">%1$d</xliff:g></string>
     <string name="memory_virtual_memory">Bộ nhớ: %1$s, bộ nhớ ảo: %2$s</string>
@@ -256,7 +256,7 @@
     <string name="sort_by_blocked_components">Đã chặn trước</string>
     <string name="exodus_link">Liên kết εxodus</string>
     <string name="usage_yesterday">Hôm qua</string>
-    <string name="app_settings">Cài đặt</string>
+    <string name="app_settings">Thiết đặt</string>
     <string name="usage_access">Truy cập dữ liệu sử dụng</string>
     <string name="pref_global_blocking_enabled_msg">Để cho bạn chặn bất kỳ thành phần nào của bất kỳ ứng dụng nào mà không bật việc chặn cho ứng dụng một cách rõ ràng.</string>
     <string name="pref_global_blocking_enabled">Chặn thành phần ngay lập tức</string>
@@ -272,7 +272,7 @@
     <string name="uninstall_system_app_message">Đây là một ứng dụng hệ thống. Bạn có chắc muốn gỡ cài đặt ứng dụng này không\?</string>
     <string name="failed_to_uninstall">Không thể gỡ cài đặt <xliff:g id="app_name" example="App Manager">%1$s</xliff:g>.</string>
     <string name="uninstall_app_message">Bạn có muốn gỡ cài đặt ứng dụng này không\?</string>
-    <string name="view_in_settings">Xem trong Cài đặt</string>
+    <string name="view_in_settings">Xem trong Thiết đặt</string>
     <string name="no_content">Không có nội dung</string>
     <string name="disabled_app">Đã tắt</string>
     <string name="error_evaluating_input">Không thể đánh giá đầu vào</string>
@@ -296,19 +296,18 @@
     <string name="changelog">Nhật ký thay đổi</string>
     <string name="source_code">Mã nguồn</string>
     <string name="update">Cập nhật</string>
-    <string name="clear_app_cache">Xoá bộ nhớ đệm của ứng dụng</string>
+    <string name="clear_app_cache">Dọn sạch bộ nhớ đệm ứng dụng</string>
     <string name="failed_to_parse_some_numbers">Không thể xử lý một số chữ số</string>
     <string name="filter_apps_with_rules">Với các quy tắc</string>
     <string name="filter_system_apps">Ứng dụng hệ thống</string>
     <string name="filter_user_apps">Ứng dụng người dùng</string>
     <string name="filter">Lọc</string>
-    <string name="cache">Trừ bộ nhớ đệm</string>
     <string name="blocking_rules">Quy tắc chặn</string>
     <string name="whats_new">Có gì mới</string>
     <string name="features">Tính năng</string>
     <string name="components">Thành phần</string>
     <string name="backup_options">Tuỳ chọn sao lưu</string>
-    <string name="delete_backup">Xoá bản sao lưu</string>
+    <string name="delete_backup">Xóa bản sao lưu</string>
     <string name="restore">Khôi phục</string>
     <string name="backup">Sao lưu</string>
     <string name="data">Dữ liệu</string>
@@ -371,7 +370,7 @@
     <string name="input_signatures">Nhập chữ ký</string>
     <string name="failed_packages">Gói thất bại</string>
     <string name="no_tracker_found">Không tìm thấy trình theo dõi nào</string>
-    <string name="clear_app_cache_description">Xoá bộ nhớ đệm của tất cả ứng dụng</string>
+    <string name="clear_app_cache_description">Dọn sạch bộ nhớ đệm của mọi ứng dụng</string>
     <string name="credits_message">Gửi các tác giả của
 \n- Dự án mã nguồn mở Android
 \n- <a href="https://github.com/zhaobozhen/libraries">Absinthe\'s libraries</a>
@@ -395,14 +394,14 @@
 \n- <a href="https://github.com/Aefyr/SAI">SAI</a>
 \n- <a href="https://github.com/RikkaApps/Shizuku">Shizuku</a>
 \n- <a href="https://github.com/eclipse/tm4e">tm4e</a>
-\n- <a href="https://github.com/tuyafeng/Watt">Watt</a> </string>
+\n- <a href="https://github.com/tuyafeng/Watt">Watt</a></string>
     <string name="starting_activity">Hoạt động bắt đầu: <xliff:g id="activity_name" example=".main.MainActivity">%1$s</xliff:g></string>
     <string name="clear_data_message">Bạn có chắc muốn xoá dữ liệu của ứng dụng này không\?</string>
-    <string name="clear_data_from_uninstalled_apps_description">Xoá dữ liệu của các ứng dụng đã gỡ cài đặt với cờ <tt>DONT_DELETE_DATA</tt></string>
+    <string name="clear_data_from_uninstalled_apps_description">Dọn sạch dữ liệu khỏi các ứng dụng được gỡ cài đặt bằng cờ <tt>DUNG_XOA_DU_LIEU</tt></string>
     <string name="block_components_dots">Chặn thành phần…</string>
     <string name="block_unblock_trackers_description">Chặn hoặc bỏ chặn các thành phần quảng cáo và theo dõi trong tất cả ứng dụng đã cài đặt</string>
     <string name="go">Đi</string>
-    <string name="clear_cache">Xoá bộ nhớ đệm</string>
+    <string name="clear_cache">Dọn bộ nhớ đệm</string>
     <string name="install">Cài đặt</string>
     <plurals name="no_of_components">
         <item quantity="other">%1$d thành phần</item>
@@ -423,8 +422,8 @@
     <string name="expiry_date_cannot_be_empty">Ngày hết hạn không thể trống.</string>
     <string name="signing_key">Mã ký</string>
     <string name="app_signing_signatures">Chữ ký</string>
-    <string name="backup_rules_description">Sao lưu các quy tắc được định cấu hình trong App Manager. <font fgcolor="#ff0000">Tùy thuộc vào quyền, không phải tất cả các quy tắc đều có thể được áp dụng lại trong quá trình khôi phục.</font> . </string>
-    <string name="backup_extras_description">Sao lưu các quyền của ứng dụng, tùy chọn tiết kiệm pin và sử dụng dữ liệu, trạng thái MagiskHide, SSAID, v.v. <font fgcolor="#ff0000">Tùy thuộc vào quyền, không phải tất cả các tính năng bổ sung đều có thể được khôi phục.</font>. </string>
+    <string name="backup_rules_description">Sao lưu các quy tắc được định cấu hình trong App Manager. <font fgcolor="#ff0000">Tùy thuộc vào quyền, không phải tất cả quy tắc đều có thể được áp dụng lại trong quá trình khôi phục.</font></string>
+    <string name="backup_extras_description">Sao lưu các quyền của ứng dụng, các tùy chọn tiết kiệm pin và sử dụng dữ liệu, trạng thái MagiskHide, SSAID, v.v. <font fgcolor="#ff0000">Tùy thuộc vào các quyền, không phải tất cả các tính năng bổ sung đều có thể được khôi phục.</font></string>
     <string name="backup_extras">Bổ sung</string>
     <string name="backup_cache_description">Sao lưu các thư mục <b>cache</b>, <b>no_cache</b> và <b>no_backup</b>.</string>
     <string name="backup_obb_media_description">Sao lưu OBB và các thư mục phương tiện.</string>
@@ -504,17 +503,17 @@
     <string name="installer_error_conflict">Không thể cài đặt ứng dụng vì tên gói đang được sử dụng</string>
     <string name="installer_error_blocked">Cài đặt bị <xliff:g id="app_name" example="App Manager">%1$s</xliff:g> chặn</string>
     <string name="installer_error_blocked_device">thiết bị</string>
-    <string name="installer_error_aborted">Cài đặt thất bại vì nó bị huỷ hoặc phiên làm việc bị đóng đột ngột</string>
+    <string name="installer_error_aborted">Cài đặt không thành công vì nó đã bị hủy hoặc phiên bị đóng đột ngột</string>
     <string name="toggle_default_app_ops">Bật/tắt hoạt động ứng dụng mặc định</string>
     <string name="filter_apps_with_activities">Có hoạt động</string>
     <string name="are_you_sure">Bạn có chắc không\?</string>
     <string name="pref_remove_all_rules_msg">Các quyền sẽ được cấp, các hoạt động ứng dụng và thành phần sẽ trở về giá trị ban đầu của chúng.</string>
-    <string name="pref_remove_all_rules">Xoá tất cả quy tắc</string>
+    <string name="pref_remove_all_rules">Loại bỏ mọi quy tắc</string>
     <string name="website">Trang web</string>
     <string name="run_in_termux">Chạy trong Termux</string>
     <string name="open_in_termux">Mở trong Termux</string>
     <string name="export_icon">Trích xuất biểu tượng</string>
-    <string name="clear">Xoá</string>
+    <string name="clear">Dọn sạch</string>
     <string name="skip_signature_checks">Bỏ qua kiểm tra chữ ký</string>
     <string name="yes">Có</string>
     <string name="no">Không</string>
@@ -554,7 +553,7 @@
     <string name="brand_name">Hãng</string>
     <string name="pref_about_device_msg">Thông tin thiết bị cơ bản bao gồm hệ thống Android, CPU, GPU, RAM, pin, v.v.</string>
     <string name="about_device">Về thiết bị</string>
-    <string name="set_custom_app_op">Đặt hoạt động ứng dụng tuỳ chỉnh</string>
+    <string name="set_custom_app_op">Đặt hoạt động ứng dụng tùy chỉnh</string>
     <string name="interceptor">Trình can thiệp</string>
     <string name="resend_intent">Gửi lại Intent</string>
     <string name="share">Chia sẻ</string>
@@ -590,7 +589,7 @@
     <string name="v3_scheme">Đề án v3 (từ Android 9)</string>
     <string name="v2_scheme">Đề án v2 (từ Android 7.0)</string>
     <string name="v1_scheme">Đề án v1 (từ Android 1.0)</string>
-    <string name="pref_apk_signing_msg">Đặt đề án chữ ký, mã ký tuỳ chỉnh, v.v.</string>
+    <string name="pref_apk_signing_msg">Đặt đề án chữ ký, mã ký tùy chỉnh, v.v.</string>
     <string name="apk_signing">Ký APK</string>
     <string name="app_signing_signature_schemes">Đề án chữ ký</string>
     <string name="source_code_links"><a href="https://github.com/MuntashirAkon/AppManager">GitHub</a> • <a href="https://gitlab.com/muntashir/AppManager">GitLab</a> • <a href="https://0xacab.org/muntashir/AppManager">Riseup</a> • <a href="https://codeberg.org/muntashir/AppManager">Codeberg</a></string>
@@ -603,7 +602,7 @@
     <string name="unknown_net_policy">Chính sách mạng không xác định (%1$s - %2$X)</string>
     <string name="port_number_invalid">Số cổng không hợp lệ.</string>
     <string name="port_number_empty">Số cổng trống.</string>
-    <string name="adb_connect_port_number_description">Số cổng được đặt dưới khu vực <b>Địa chỉ IP &amp; cổng</b> ngay ở dưới khu vực <b>Tên thiết bị</b>.</string>
+    <string name="adb_connect_port_number_description">Số cổng nằm trong <b>địa chỉ IP &amp; cổng</b> ngay bên dưới phần <b>Tên thiết bị</b>.</string>
     <string name="port_number">Cổng</string>
     <string name="adb_connect">Kết nối</string>
     <string name="wireless_debugging">Gỡ lỗi không dây</string>
@@ -665,7 +664,7 @@
     <string name="text_filter_ellipsis">Lọc…</string>
     <string name="subject_log_report">Báo cáo nhật ký</string>
     <string name="start_recording_log">Ghi lại</string>
-    <string name="settings">Cài đặt</string>
+    <string name="settings">Thiết đặt</string>
     <string name="send_log_title">Gửi nhật ký</string>
     <string name="save_log">Lưu nhật ký</string>
     <string name="save_as">Lưu dưới dạng…</string>
@@ -703,7 +702,7 @@
     <string name="enter_good_filename">Vui lòng nhập tên tệp hợp lệ.</string>
     <string name="enter_filename">Nhập tên tệp</string>
     <string name="dialog_compiling_log">Đang biên dịch nhật ký…</string>
-    <string name="delete_saved_log">Xoá nhật ký đã lưu</string>
+    <string name="delete_saved_log">Xóa nhật ký đã lưu</string>
     <string name="copy_to_clipboard">Sao chép vào bộ nhớ tạm</string>
     <plurals name="file_deletion_confirmation">
         <item quantity="other">%d tệp sẽ bị xoá</item>
@@ -798,7 +797,7 @@
     <string name="backup_all_apps_msg">Sao lưu tất cả ứng dụng đã cài đặt.</string>
     <string name="backup_all_apps">Sao lưu tất cả ứng dụng</string>
     <string name="backup_custom_users_description">Thực hiện các bản sao lưu chỉ cho những người dùng được chỉ định</string>
-    <string name="backup_custom_users">Người dùng tuỳ chỉnh</string>
+    <string name="backup_custom_users">Người dùng tùy chỉnh</string>
     <string name="bootloader">Bootloader</string>
     <string name="unencrypted">Không được mã hoá</string>
     <string name="no_volumes_found">Không thể tìm thấy bất kỳ ổ đĩa nào có quyền ghi.</string>
@@ -833,7 +832,7 @@
     <string name="un_apkm">UnApkm</string>
     <string name="in_progress">Đang thực hiện</string>
     <string name="conversion_failed">Chuyển đổi thất bại.</string>
-    <string name="pref_backup_flags_msg">Việc thêm một thiết lập trước cho các tuỳ chọn sao lưu sẽ xoá đi gánh nặng phải chọn các thuộc tính mỗi lần bạn sao lưu/khôi phục.</string>
+    <string name="pref_backup_flags_msg">Việc thêm một thiết lập trước cho các tùy chọn sao lưu sẽ xoá đi gánh nặng phải chọn các thuộc tính mỗi lần bạn sao lưu/khôi phục.</string>
     <string name="pref_compression_method">Phương pháp nén</string>
     <string name="rules">Quy tắc</string>
     <string name="format">Định dạng</string>
@@ -878,7 +877,7 @@
     <string name="scanner">Trình quét</string>
     <string name="sys_config">Thiết lập hệ thống</string>
     <string name="only_install">Chỉ cài đặt</string>
-    <string name="app_signing_install_without_data_loss">Nếu bạn đã tắt xác minh chữ ký, bạn có thể sử dụng tuỳ chọn <b>Chỉ cài đặt</b> để cài đặt ứng dụng mà không mất dữ liệu.</string>
+    <string name="app_signing_install_without_data_loss">Nếu bạn đã tắt xác minh chữ ký, bạn có thể sử dụng tùy chọn <b>Chỉ cài đặt</b> để cài đặt ứng dụng mà không mất dữ liệu.</string>
     <string name="app_data_will_be_lost">Dữ liệu hiện có sẽ bị mất.</string>
     <string name="app_signing_signature_mismatch_for_system_apps">Không thể cài đặt ứng dụng vì một ứng dụng hệ thống có chữ ký khác cũng có tên gói này.</string>
     <string name="do_you_want_to_uninstall_and_install">Bạn có muốn gỡ cài đặt và cài đặt ứng dụng lại không\?</string>
@@ -900,7 +899,7 @@
     <string name="profiles">Cấu hình</string>
     <string name="open_pgp_provider">Nhà cung cấp OpenPGP</string>
     <string name="systemless_app">Ứng dụng không dùng hệ thống</string>
-    <string name="cancel">Huỷ</string>
+    <string name="cancel">Hủy bỏ</string>
     <string name="ok">OK</string>
     <string name="input_backup_name_description">Tên bản sao lưu không nên bắt đầu bằng một chữ số và cũng không nên chứa dấu cách. Để trống nếu bạn muốn sử dụng ngày-giờ hiện tại.</string>
     <string name="input_backup_name">Tên bản sao lưu</string>
@@ -927,17 +926,17 @@
     <string name="community">Cộng đồng</string>
     <string name="native_library_dir">Thư mục thư viện JNI gốc</string>
     <string name="input_key">Nhập mã (ở hệ thập lục phân)</string>
-    <string name="installer_app_message">Chọn <b>Chọn</b> để chọn từ các ứng dụng đã cài đặt hoặc chọn <b>Tuỳ chỉnh</b> để chỉ định một tên gói tuỳ chỉnh.</string>
+    <string name="installer_app_message">Chọn <b>Chọn</b> để chọn từ các ứng dụng đã cài đặt hoặc chọn <b>Tùy chỉnh</b> để chỉ định tên gói tùy chỉnh.</string>
     <string name="verified_using_unreliable_hash">Đã xác minh bằng hash không đáng tin cậy</string>
     <string name="input_permissions_description">Nhập các quyền có dấu cách, vd: <tt>com.permission.GET_ACCOUNTS android.permission.ACCESS_MEDIA_LOCATION</tt> v.v. Sử dụng <tt>*</tt> để áp dụng cho tất cả quyền.</string>
     <string name="input_permissions">Nhập các quyền</string>
     <string name="options">Tuỳ chọn</string>
     <string name="off">Tắt</string>
     <string name="on">Bật</string>
-    <string name="profile_state_msg">Trạng thái bật/tắt tuỳ chỉnh cho cấu hình này</string>
+    <string name="profile_state_msg">Trạng thái bật/tắt tùy chỉnh cho cấu hình này</string>
     <string name="profile_block_trackers_msg">Chặn các trình theo dõi trong các ứng dụng</string>
-    <string name="profile_clear_data_msg">Xoá dữ liệu của các ứng dụng</string>
-    <string name="profile_clear_cache_msg">Xoá bộ nhớ đệm của các ứng dụng</string>
+    <string name="profile_clear_data_msg">Dọn dẹp dữ liệu của các ứng dụng</string>
+    <string name="profile_clear_cache_msg">Dọn dẹp bộ nhớ đệm của các ứng dụng</string>
     <string name="profile_force_stop_msg">Buộc dừng các ứng dụng</string>
     <string name="allow_routine_ops_msg">Cho phép cấu hình được sử dụng trong các hoạt động thường ngày</string>
     <string name="profile_state">Trạng thái cấu hình</string>
@@ -979,9 +978,7 @@
     <string name="notice_saf">Không giống các kho, thư mục được chọn sẽ được sử dụng để lưu trữ tất cả tệp liên quan đến App Manager, bao gồm cả các tệp APK đã lưu và các bản sao lưu. Storage Access Framework (SAF) rất là chậm, do đó bạn chỉ nên sử dụng tùy chọn này khi những tùy chọn khác không thể sử dụng được.</string>
     <string name="notice">Thông báo</string>
     <string name="paired_successfully">Đã ghép đôi.</string>
-    <string name="port_number_pairing_code_empty">Số cổng hoặc mã ghép đôi trống.</string>
     <string name="adb_pair">Ghép đôi</string>
-    <string name="adb_wifi_paring_code">Mã ghép đôi Wi-Fi</string>
     <string name="invalid_password">Mật khẩu không hợp lệ, hãy thử lại.</string>
     <string name="keystore_pass_cannot_be_empty">Mật khẩu KeyStore không thể trống.</string>
     <string name="keystore_password_info">Đây là mật khẩu KeyStore của App Manager. Vui lòng lưu trữ nó ở một nơi bảo mật nếu bạn có kế hoạch sao lưu/khôi phục KeyStore của App Manager. <b>Thông báo này sẽ không được hiển thị lại.</b></string>
@@ -1020,10 +1017,11 @@
     <string name="smali">Smali</string>
     <string name="accessibility_service_description">Cho phép truy cập và sử dụng dịch vụ để thực hiện một số công việc như dọn cache trên thiết bị chưa root.</string>
     <string name="pref_import_backups_hint">Chọn thư mục chứa bản sao từ(Swift Backup/Titanium Backup) hoặc thư mục(OAndBackup)</string>
-    <string name="import_from_sb">Nhập bản sao từ Swift Backup 3.0 - 3.2</string>
+    <string name="import_from_sb">Nhập bản sao từ Swift Backup 3.0 – 3.2</string>
     <string name="intent_firewall_and_disable">IFW + tắt</string>
     <string name="pref_default_blocking_method">Phương pháp chặn mặc định</string>
-    <string name="pref_default_blocking_method_description">Phương pháp sẽ được sử dụng theo mặc định ở những nơi không có tùy chọn phương pháp chặn.</string>
+    <string name="pref_default_blocking_method_description">Phương pháp được sử dụng theo mặc định ở những nơi không có tùy chọn để chọn phương pháp chặn.
+\n<b>Lưu ý:</b> “IFW” không hoạt động với các nhà cung cấp, thay vào đó, “vô hiệu hóa” được sử dụng.</string>
     <string name="pref_disable_description">Chỉ tắt các thành phần. Không được khuyên dùng cho người dùng root vì các ứng dụng có thể vượt qua việc này. Ở chế độ ADB, các ứng dụng chỉ thử có thể được tắt bằng phương pháp này.</string>
     <string name="intent_firewall">IFW</string>
     <string name="pref_intent_firewall_and_disable_description">Chặn các thành phần bằng Intent Firewall và tắt chúng. Phương pháp này được khuyên dùng cho người dùng root.</string>
@@ -1090,7 +1088,7 @@
     <string name="hidden_api_enf_policy_black">Thực thi (chỉ danh sách cấm)</string>
     <string name="binary_64_bit">64 Bit</string>
     <string name="endianness_big_endian">Big endian</string>
-    <string name="pref_saved_apk_name_format">ĐỊnh dạng tên tệp APK được lưu</string>
+    <string name="pref_saved_apk_name_format">Định dạng tên tệp APK đã lưu</string>
     <string name="auth_manager_description">Để chạy Intent từ một ứng dụng ngoài, bạn cần nhập thêm một trường gọi là <tt>auth</tt>, và nó phải chứa mã sau:</string>
     <string name="auth_manager_title">Quản lý ủy quyền</string>
     <string name="regenerate_auth_key">Tạo lại mã ủy quyền</string>
@@ -1122,7 +1120,7 @@
     <string name="pref_pure_black_theme">Chế độ đen tuyền</string>
     <string name="pref_pure_black_theme_msg">Sử dụng nền đen khi bật chế độ ban đêm.</string>
     <string name="netpolicy_cannot_be_modified_for_core_apps">Không thể thay đổi chính sách mạng cho các ứng dụng cốt lõi của Android.</string>
-    <string name="open_developer_options_page">Mở trang tùy chọn nhà phát triển trong cài đặt Android</string>
+    <string name="open_developer_options_page">Mở trang tùy chọn nhà phát triển trong thiết đặt Android</string>
     <string name="app_explorer">Khám phá ứng dụng</string>
     <string name="backup_no_backups_present">Không có bản sao lưu.</string>
     <string name="unfreeze">Rã đông</string>
@@ -1196,7 +1194,7 @@
     <string name="tap_to_freeze_app">Nhấn để đóng băng</string>
     <string name="waiting_for_the_phone_to_be_locked">Đang đợi điện thoại khóa…</string>
     <string name="action_stop_service">Dừng</string>
-    <string name="funding_campaign_dialog_message">Chúng tôi đang chạy <b>chiến dịch tài trợ</b> cho App Manager trong một khoảng thời gian giới hạn. Truy cập <a href="https://opencollective.com/app-manager#category-ABOUT">opencollective.com/app-manager</a> để tìm hiểu thêm về chiến dịch. Thông báo này sẽ không được hiển thị lại, nhưng bạn có thể tìm thấy nó trong trang Cài đặt trong toàn bộ chiến dịch.</string>
+    <string name="funding_campaign_dialog_message">Chúng tôi đang chạy <b>chiến dịch tài trợ</b> cho App Manager trong một khoảng thời gian giới hạn. Truy cập <a href="https://opencollective.com/app-manager#category-ABOUT">opencollective.com/app-manager</a> để tìm hiểu thêm về chiến dịch. Thông báo này sẽ không được hiển thị lại, nhưng bạn có thể tìm thấy nó trong trang Thiết đặt trong toàn bộ chiến dịch.</string>
     <string name="adb_incomplete_usb_debugging_message">Có vẻ như Gỡ lỗi USB không được định cấu hình đúng cách. Vui lòng đọc <a href="https://muntashirakon.github.io/AppManager/#subsec:enable-usb-debugging">tài liệu</a> để biết các bước bổ sung. Nếu bạn đã biết các bước, vui lòng nhấp vào “Mở” để mở tùy chọn nhà phát triển hoặc nhấp vào “Đóng” để tiếp tục sử dụng chế độ không root.</string>
     <string name="sort_by_data_usage">Dữ liệu đã dùng</string>
     <string name="filter_apps_with_keystore">Với KeyStore</string>
@@ -1357,4 +1355,46 @@
     <string name="scan_report_from_pithus">Báo cáo Pithus</string>
     <string name="action_checking">Đang kiểm tra…</string>
     <string name="report_not_available">Không có sẵn</string>
+    <string name="profile_modified_are_you_sure">Hồ sơ đã được sửa đổi. Hủy tất cả thay đổi của bạn và thoát\?</string>
+    <string name="apply_profile">Áp dụng hồ sơ “%1$s”</string>
+    <string name="copy_profile_id">Sao chép ID hồ sơ</string>
+    <string name="profile_id">ID hồ sơ</string>
+    <string name="choose_a_profile_state">Chọn trạng thái hồ sơ</string>
+    <string name="pref_toggle_internet_msg">Kích hoạt các tính năng Internet trong App Manager</string>
+    <string name="launch_activity_dialog_title">Khởi chạy hoạt động: Hành động bắt buộc</string>
+    <string name="finder_title">Trình tìm kiếm</string>
+    <string name="select_filter">Chọn một bộ lọc</string>
+    <string name="value_cannot_be_empty">Giá trị không thể trống!</string>
+    <string name="date">Ngày tháng</string>
+    <string name="size_in_bytes">Kích thước (byte)</string>
+    <string name="invalid_regex">Biểu thức chính quy không hợp lệ!</string>
+    <string name="virus_total">VirusTotal</string>
+    <string name="pref_use_vt">Sử dụng VirusTotal</string>
+    <string name="pref_cat_general">Tổng quan</string>
+    <string name="pref_use_log_viewer">Sử dụng Trình xem nhật ký</string>
+    <string name="pref_installer">Sử dụng trình cài đặt</string>
+    <string name="adb_pairing_searching_for_port">Đang tìm kiếm…</string>
+    <string name="adb_pairing_pairing_code">Mã ghép nối</string>
+    <string name="adb_pairing_stop_searching">Dừng</string>
+    <string name="adb_pairing_input_pairing_code">Mã ghép nối</string>
+    <string name="mode_of_op_custom_command_title">Lệnh tùy chỉnh</string>
+    <string name="adb_pairing_found_pairing_service_with_port">Đã tìm thấy dịch vụ có cổng %d</string>
+    <string name="adb_pairing_retry_pairing">Thử lại</string>
+    <string name="adb_pairing_pairing_in_progress">Đang ghép nối…</string>
+    <string name="mode_of_op_custom_command">Nếu không thể sử dụng bất kỳ chế độ nào, bạn có thể chạy lệnh sau trong bất kỳ shell nào được hỗ trợ để chạy App Manager ở chế độ đặc quyền:</string>
+    <string name="launch_activity_dialog_message">App Manager đang cố gắng khởi chạy hoạt động thông qua <b>Trợ lý tìm kiếm</b> (thường là Trợ lý Google), nhưng không thể thực hiện được do không có đủ quyền. Để mở hoạt động, vui lòng kích hoạt <b>Trợ lý tìm kiếm</b> theo cách thủ công (việc này thường được thực hiện bằng cách nhấp và giữ nút Trang chủ). Nhấp vào nút <b>Đóng</b> sau khi bạn khởi chạy xong hoạt động để quay lại trợ lý ban đầu.</string>
+    <string name="pref_use_vt_no_internet">VirusTotal yêu cầu Internet để hoạt động nhưng Internet chưa được kích hoạt. Trước tiên, hãy bật <a href="app-manager://settings/privacy_prefs/toggle_internet">“Sử dụng Internet”</a>.</string>
+    <string name="netpolicy_reject_metered_background_data">Từ chối dữ liệu nền trên mạng có đồng hồ đo</string>
+    <string name="netpolicy_reject_metered_data">Từ chối dữ liệu trên mạng có đồng hồ đo</string>
+    <string name="netpolicy_allow_metered_background_data">Cho phép dữ liệu nền trên mạng có đồng hồ đo ngay cả khi Trình tiết kiệm dữ liệu đang bật</string>
+    <string name="status_remote_server_active">Máy chủ từ xa đang hoạt động</string>
+    <string name="status_remote_server_inactive">Máy chủ từ xa không hoạt động</string>
+    <string name="status_remote_services_active">Dịch vụ từ xa đang hoạt động</string>
+    <string name="status_remote_services_inactive">Dịch vụ từ xa không hoạt động</string>
+    <string name="status_connecting">Đang kết nối…</string>
+    <string name="status_connecting_via_mode">Đang kết nối qua %s</string>
+    <string name="status_connected_via_mode">Đã kết nối qua %s</string>
+    <string name="status_not_connected_via_mode">Không thể kết nối qua %s</string>
+    <string name="adb_pairing_instruction">Vui lòng điều hướng đến tùy chọn nhà phát triển để bật gỡ lỗi không dây và tạo mã ghép nối.</string>
+    <string name="mode_of_op_alternative_custom_command">Nếu bạn gặp lỗi “quyền bị từ chối” với lệnh trên, thay vào đó hãy chạy lệnh sau:</string>
 </resources>

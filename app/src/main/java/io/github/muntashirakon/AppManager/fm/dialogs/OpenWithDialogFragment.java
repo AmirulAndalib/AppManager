@@ -11,6 +11,7 @@ import android.content.pm.ResolveInfo;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.UserHandleHidden;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -40,10 +41,12 @@ import java.util.Locale;
 import java.util.Objects;
 
 import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.compat.ActivityManagerCompat;
 import io.github.muntashirakon.AppManager.fm.FmProvider;
 import io.github.muntashirakon.AppManager.intercept.ActivityInterceptor;
 import io.github.muntashirakon.AppManager.self.imagecache.ImageLoader;
 import io.github.muntashirakon.AppManager.settings.FeatureController;
+import io.github.muntashirakon.util.AdapterUtils;
 import io.github.muntashirakon.AppManager.utils.ContextUtils;
 import io.github.muntashirakon.AppManager.utils.ThreadUtils;
 import io.github.muntashirakon.AppManager.utils.UIUtils;
@@ -237,8 +240,13 @@ public class OpenWithDialogFragment extends DialogFragment {
                 }
             });
             mViewModel.getIntentLiveData().observe(getViewLifecycleOwner(), intent -> {
-                startActivity(intent);
-                dismiss();
+                try {
+                    // Resolved activities may contain non-exported activity
+                    ActivityManagerCompat.startActivity(intent, UserHandleHidden.myUserId());
+                    dismiss();
+                } catch (SecurityException e) {
+                    UIUtils.displayLongToast("Failed: " + e.getMessage());
+                }
             });
             if (mCustomType == null) {
                 mViewModel.loadFileContentInfo(mPath);
@@ -313,13 +321,14 @@ public class OpenWithDialogFragment extends DialogFragment {
 
         private void filterItems() {
             synchronized (mFilteredItems) {
+                int lastCount = mFilteredItems.size();
                 mFilteredItems.clear();
                 for (int i = 0; i < mMatchingActivities.size(); ++i) {
                     if (mConstraint == null || mMatchingActivities.get(i).matches(mConstraint)) {
                         mFilteredItems.add(i);
                     }
                 }
-                notifyDataSetChanged();
+                AdapterUtils.notifyDataSetChanged(this, lastCount, mFilteredItems.size());
             }
         }
 

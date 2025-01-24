@@ -23,6 +23,7 @@ import androidx.annotation.WorkerThread;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.PendingIntentCompat;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -505,8 +506,9 @@ public class KeyStoreManager {
         } else {
             IntentFilter filter = new IntentFilter(ACTION_KS_INTERACTION_BEGIN);
             filter.addAction(ACTION_KS_INTERACTION_END);
-            mContext.registerReceiver(mReceiver, filter);
+            ContextCompat.registerReceiver(mContext, mReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
             Intent broadcastIntent = new Intent(ACTION_KS_INTERACTION_BEGIN);
+            broadcastIntent.setPackage(mContext.getPackageName());
             mContext.sendBroadcast(broadcastIntent);
             // Intent wrapper
             Intent intent = new Intent(mContext, KeyStoreActivity.class);

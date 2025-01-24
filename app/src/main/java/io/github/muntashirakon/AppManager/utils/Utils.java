@@ -5,6 +5,7 @@ package io.github.muntashirakon.AppManager.utils;
 import static android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND;
 import static android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE;
 
+import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -16,10 +17,13 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PermissionInfo;
 import android.content.pm.ServiceInfo;
-import android.content.pm.Signature;
 import android.content.res.Configuration;
+import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
+import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Build;
+import android.os.UserHandleHidden;
 import android.text.GetChars;
 import android.text.TextUtils;
 import android.util.Pair;
@@ -33,14 +37,9 @@ import androidx.annotation.StringRes;
 import androidx.core.content.pm.PermissionInfoCompat;
 import androidx.fragment.app.FragmentActivity;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
-import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,7 +47,10 @@ import java.util.List;
 import java.util.Locale;
 
 import aosp.libcore.util.EmptyArray;
+import io.github.muntashirakon.AppManager.BuildConfig;
 import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.apk.signing.SignerInfo;
+import io.github.muntashirakon.AppManager.compat.PackageManagerCompat;
 import io.github.muntashirakon.AppManager.misc.OsEnvironment;
 
 public class Utils {
@@ -455,6 +457,27 @@ public class Utils {
         return major + "." + minor;
     }
 
+    @Nullable
+    public static String getVulkanVersion(PackageManager pm) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            return null;
+        }
+        // https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/core/java/android/os/GraphicsEnvironment.java;l=193;drc=f80e786d308318894be30d54b93f38034496fc66
+        if (pm.hasSystemFeature(PackageManager.FEATURE_VULKAN_HARDWARE_VERSION, 0x00403000)) {
+            return "1.3";
+        }
+        if (pm.hasSystemFeature(PackageManager.FEATURE_VULKAN_HARDWARE_VERSION, 0x00402000)) {
+            return "1.2";
+        }
+        if (pm.hasSystemFeature(PackageManager.FEATURE_VULKAN_HARDWARE_VERSION, 0x00401000)) {
+            return "1.1";
+        }
+        if (pm.hasSystemFeature(PackageManager.FEATURE_VULKAN_HARDWARE_VERSION, 0x00400000)) {
+            return "1.0";
+        }
+        return null;
+    }
+
     @CheckResult
     @NonNull
     public static byte[] charsToBytes(@NonNull char[] chars) {
@@ -492,21 +515,15 @@ public class Utils {
 
     @NonNull
     public static Pair<String, String> getIssuerAndAlg(@NonNull PackageInfo p) {
-        Signature[] signatures = PackageUtils.getSigningInfo(p, false);
-        X509Certificate c;
-        if (signatures == null) return new Pair<>("", "");
-        String name = "";
-        String algoName = "";
-        for (Signature sg : signatures) {
-            try (InputStream is = new ByteArrayInputStream(sg.toByteArray())) {
-                c = (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(is);
-                name = c.getIssuerX500Principal().getName();
-                algoName = c.getSigAlgName();
-                break;
-            } catch (IOException | CertificateException ignore) {
+        SignerInfo signerInfo = PackageUtils.getSignerInfo(p, false);
+        if (signerInfo != null) {
+            X509Certificate[] certs = signerInfo.getCurrentSignerCerts();
+            if (certs != null && certs.length > 0) {
+                X509Certificate c = certs[0];
+                return new Pair<>(c.getIssuerX500Principal().getName(), c.getSigAlgName());
             }
         }
-        return new Pair<>(name, algoName);
+        return new Pair<>("", "");
     }
 
     /**
@@ -593,10 +610,42 @@ public class Utils {
     }
 
     public static void relaunchApp(@NonNull FragmentActivity activity) {
-        Intent intent = activity.getPackageManager().getLaunchIntentForPackage(activity.getPackageName());
+        Intent intent = PackageManagerCompat.getLaunchIntentForPackage(activity.getPackageName(), UserHandleHidden.myUserId());
+        if (intent == null) {
+            // No launch intent
+            return;
+        }
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         activity.startActivity(intent);
         activity.finish();
+    }
+
+    @Nullable
+    public static String getRealReferrer(@NonNull Activity activity) {
+        String callingPackage = activity.getCallingPackage();
+        if (callingPackage != null && !BuildConfig.APPLICATION_ID.equals(callingPackage)) {
+            return callingPackage;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+            Intent intent = activity.getIntent();
+            intent.removeExtra(Intent.EXTRA_REFERRER_NAME);
+            intent.removeExtra(Intent.EXTRA_REFERRER);
+            // Now that the custom referrers are removed, it should return the real referrer.
+            // android-app:authority
+            Uri referrer = activity.getReferrer();
+            return referrer != null ? referrer.getAuthority() : null;
+        }
+        return null;
+    }
+
+    public static boolean isWifiActive(@NonNull Context context) {
+        ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            NetworkCapabilities capabilities = cm.getNetworkCapabilities(cm.getActiveNetwork());
+            return capabilities != null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
+        }
+        NetworkInfo info = cm.getActiveNetworkInfo();
+        return info != null && info.getType() == ConnectivityManager.TYPE_WIFI;
     }
 
     public static boolean isRoboUnitTest() {
