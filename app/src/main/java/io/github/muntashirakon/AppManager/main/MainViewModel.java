@@ -25,8 +25,9 @@ import androidx.lifecycle.MutableLiveData;
 
 import org.json.JSONException;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.text.Collator;
 import java.util.ArrayList;
@@ -66,8 +67,6 @@ import io.github.muntashirakon.AppManager.utils.Utils;
 import io.github.muntashirakon.io.Path;
 
 public class MainViewModel extends AndroidViewModel implements ListOptions.ListOptionActions {
-    private static final Collator sCollator = Collator.getInstance();
-
     private final PackageManager mPackageManager;
     private final PackageIntentReceiver mPackageObserver;
     private final Handler mHandler;
@@ -317,7 +316,7 @@ public class MainViewModel extends AndroidViewModel implements ListOptions.ListO
 
     public void saveExportedAppList(@ListExporter.ExportType int exportType, @NonNull Path path) {
         executor.submit(() -> {
-            try (OutputStream os = path.openOutputStream()) {
+            try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(path.openOutputStream(), StandardCharsets.UTF_8))) {
                 List<PackageInfo> packageInfoList = new ArrayList<>();
                 for (String packageName : getSelectedPackages().keySet()) {
                     int[] userIds = Objects.requireNonNull(getSelectedPackages().get(packageName)).userIds;
@@ -327,7 +326,7 @@ public class MainViewModel extends AndroidViewModel implements ListOptions.ListO
                         break;
                     }
                 }
-                os.write(ListExporter.export(getApplication(), exportType, packageInfoList).getBytes(StandardCharsets.UTF_8));
+                ListExporter.export(getApplication(), writer, exportType, packageInfoList);
                 mOperationStatus.postValue(true);
             } catch (IOException | RemoteException | PackageManager.NameNotFoundException e) {
                 e.printStackTrace();
@@ -521,10 +520,11 @@ public class MainViewModel extends AndroidViewModel implements ListOptions.ListO
                 sortApplicationList(MainListOptions.SORT_BY_APP_LABEL, false);
             }
             int mode = reverse ? -1 : 1;
+            Collator collator = Collator.getInstance();
             Collections.sort(mApplicationItems, (o1, o2) -> {
                 switch (sortBy) {
                     case MainListOptions.SORT_BY_APP_LABEL:
-                        return mode * sCollator.compare(o1.label, o2.label);
+                        return mode * collator.compare(o1.label, o2.label);
                     case MainListOptions.SORT_BY_PACKAGE_NAME:
                         return mode * o1.packageName.compareTo(o2.packageName);
                     case MainListOptions.SORT_BY_DOMAIN:
@@ -746,12 +746,10 @@ public class MainViewModel extends AndroidViewModel implements ListOptions.ListO
             item.blockedCount = app.rulesCount;
             item.trackerCount = app.trackerCount;
             item.lastActionTime = app.lastActionTime;
-            try {
-                if (item.backup == null) {
-                    item.backup = BackupUtils.getLatestBackupMetadataFromDbNoLockValidate(packageName);
-                }
-            } catch (Exception ignore) {
+            if (item.backup == null) {
+                item.backup = BackupUtils.getLatestBackupMetadataFromDbNoLockValidate(packageName);
             }
+            item.generateOtherInfo();
         }
         if (item.packageName == null) {
             return null;

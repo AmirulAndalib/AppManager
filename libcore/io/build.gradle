@@ -7,6 +7,7 @@ plugins {
 android {
     namespace 'io.github.muntashirakon.io'
     compileSdk compile_sdk
+    buildToolsVersion = build_tools
 
     defaultConfig {
         minSdk min_sdk
@@ -20,6 +21,7 @@ android {
     }
     buildFeatures {
         aidl true
+        buildConfig true
     }
 }
 

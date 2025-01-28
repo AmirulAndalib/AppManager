@@ -17,7 +17,6 @@ import android.view.ViewGroup;
 import android.widget.Filter;
 import android.widget.Filterable;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -26,7 +25,6 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.widget.PopupMenu;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
-import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -54,6 +52,7 @@ import io.github.muntashirakon.dialog.SearchableSingleChoiceDialogBuilder;
 import io.github.muntashirakon.dialog.TextInputDialogBuilder;
 import io.github.muntashirakon.io.Path;
 import io.github.muntashirakon.io.Paths;
+import io.github.muntashirakon.util.AdapterUtils;
 import io.github.muntashirakon.util.UiUtils;
 import io.github.muntashirakon.widget.RecyclerView;
 
@@ -79,10 +78,10 @@ public class ProfilesActivity extends BaseActivity {
                         Path profilePath = ProfileManager.findProfilePathById(mProfileId);
                         AppsProfile profile = AppsProfile.fromPath(profilePath);
                         profile.write(os);
-                        Toast.makeText(this, R.string.the_export_was_successful, Toast.LENGTH_SHORT).show();
+                        UIUtils.displayShortToast(R.string.the_export_was_successful);
                     } catch (IOException | JSONException e) {
                         Log.e(TAG, "Error: ", e);
-                        Toast.makeText(this, R.string.export_failed, Toast.LENGTH_SHORT).show();
+                        UIUtils.displayShortToast(R.string.export_failed);
                     }
                 }
             });
@@ -103,12 +102,12 @@ public class ProfilesActivity extends BaseActivity {
                     try (OutputStream os = innerProfilePath.openOutputStream()) {
                         newProfile.write(os);
                     }
-                    Toast.makeText(this, R.string.the_import_was_successful, Toast.LENGTH_SHORT).show();
+                    UIUtils.displayShortToast(R.string.the_import_was_successful);
                     // Load imported profile
                     startActivity(AppsProfileActivity.getProfileIntent(this, newProfile.profileId));
                 } catch (IOException | JSONException e) {
                     Log.e(TAG, "Error: ", e);
-                    Toast.makeText(this, R.string.import_failed, Toast.LENGTH_SHORT).show();
+                    UIUtils.displayShortToast(R.string.import_failed);
                 }
             });
 
@@ -120,7 +119,7 @@ public class ProfilesActivity extends BaseActivity {
         mProgressIndicator = findViewById(R.id.progress_linear);
         mProgressIndicator.setVisibilityAfterHide(View.GONE);
         RecyclerView listView = findViewById(android.R.id.list);
-        listView.setLayoutManager(new LinearLayoutManager(this));
+        listView.setLayoutManager(UIUtils.getGridLayoutAt450Dp(this));
         listView.setEmptyView(findViewById(android.R.id.empty));
         UiUtils.applyWindowInsetsAsPaddingNoTop(listView);
         mAdapter = new ProfilesAdapter(this);
@@ -194,9 +193,10 @@ public class ProfilesActivity extends BaseActivity {
 
         void setDefaultList(@NonNull HashMap<AppsProfile, CharSequence> list) {
             mDefaultList = list.keySet().toArray(new AppsProfile[0]);
+            int previousCount = getItemCount();
             mAdapterList = mDefaultList;
             mAdapterMap = list;
-            notifyDataSetChanged();
+            AdapterUtils.notifyDataSetChanged(this, previousCount, mAdapterList.length);
         }
 
         @Override
@@ -236,7 +236,7 @@ public class ProfilesActivity extends BaseActivity {
                 popupMenu.setOnMenuItemClickListener(item -> {
                     int id = item.getItemId();
                     if (id == R.id.action_apply) {
-                        Intent intent = ProfileApplierActivity.getShortcutIntent(mActivity, profile.profileId, null, null);
+                        Intent intent = ProfileApplierActivity.getApplierIntent(mActivity, profile.profileId);
                         mActivity.startActivity(intent);
                     } else if (id == R.id.action_delete) {
                         new MaterialAlertDialogBuilder(mActivity)
@@ -245,15 +245,15 @@ public class ProfilesActivity extends BaseActivity {
                                 .setPositiveButton(R.string.cancel, null)
                                 .setNegativeButton(R.string.ok, (dialog, which) -> {
                                     if (ProfileManager.deleteProfile(profile.profileId)) {
-                                        Toast.makeText(mActivity, R.string.deleted_successfully, Toast.LENGTH_SHORT).show();
+                                        UIUtils.displayShortToast(R.string.deleted_successfully);
                                     } else {
-                                        Toast.makeText(mActivity, R.string.deletion_failed, Toast.LENGTH_SHORT).show();
+                                        UIUtils.displayShortToast(R.string.deletion_failed);
                                     }
                                 })
                                 .show();
                     } else if (id == R.id.action_routine_ops) {
                         // TODO(7/11/20): Setup routine operations for this profile
-                        Toast.makeText(mActivity, "Not yet implemented", Toast.LENGTH_SHORT).show();
+                        UIUtils.displayShortToast("Not yet implemented");
                     } else if (id == R.id.action_duplicate) {
                         new TextInputDialogBuilder(mActivity, R.string.input_profile_name)
                                 .setTitle(R.string.new_profile)
@@ -329,12 +329,13 @@ public class ProfilesActivity extends BaseActivity {
 
                     @Override
                     protected void publishResults(CharSequence charSequence, FilterResults filterResults) {
+                        int previousCount = mAdapterList != null ? mAdapterList.length : 0;
                         if (filterResults.values == null) {
                             mAdapterList = mDefaultList;
                         } else {
                             mAdapterList = (AppsProfile[]) filterResults.values;
                         }
-                        notifyDataSetChanged();
+                        AdapterUtils.notifyDataSetChanged(ProfilesAdapter.this, previousCount, mAdapterList.length);
                     }
                 };
             return mFilter;

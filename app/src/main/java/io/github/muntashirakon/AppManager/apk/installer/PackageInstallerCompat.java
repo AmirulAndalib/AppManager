@@ -23,6 +23,7 @@ import android.content.pm.PackageInstaller;
 import android.content.pm.PackageInstallerHidden;
 import android.content.pm.PackageManager;
 import android.content.pm.VersionedPackage;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -36,6 +37,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.annotation.WorkerThread;
 import androidx.core.app.PendingIntentCompat;
+import androidx.core.content.ContextCompat;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -62,18 +64,17 @@ import io.github.muntashirakon.AppManager.ipc.ProxyBinder;
 import io.github.muntashirakon.AppManager.logs.Log;
 import io.github.muntashirakon.AppManager.progress.ProgressHandler;
 import io.github.muntashirakon.AppManager.self.SelfPermissions;
+import io.github.muntashirakon.AppManager.types.UserPackagePair;
 import io.github.muntashirakon.AppManager.users.Users;
 import io.github.muntashirakon.AppManager.utils.BroadcastUtils;
 import io.github.muntashirakon.AppManager.utils.ContextUtils;
 import io.github.muntashirakon.AppManager.utils.FileUtils;
 import io.github.muntashirakon.AppManager.utils.MiuiUtils;
+import io.github.muntashirakon.AppManager.utils.PackageUtils;
 import io.github.muntashirakon.AppManager.utils.ThreadUtils;
 import io.github.muntashirakon.AppManager.utils.UIUtils;
-import io.github.muntashirakon.io.IoUtils;
 import io.github.muntashirakon.io.Path;
 
-// FIXME: 21/1/23 This class has too many design issues that has to be addressed at some later time.
-//  One example is the handling of userId, which should be independent of the class itself.k
 @SuppressLint("ShiftFlags")
 public final class PackageInstallerCompat {
     public static final String TAG = PackageInstallerCompat.class.getSimpleName();
@@ -168,7 +169,7 @@ public final class PackageInstallerCompat {
             INSTALL_FROM_ADB,
             INSTALL_ALL_USERS,
             INSTALL_REQUEST_DOWNGRADE,
-            INSTALL_GRANT_RUNTIME_PERMISSIONS,
+            INSTALL_GRANT_ALL_REQUESTED_PERMISSIONS,
             INSTALL_ALL_WHITELIST_RESTRICTED_PERMISSIONS,
             INSTALL_FORCE_VOLUME_UUID,
             INSTALL_FORCE_PERMISSION_PROMPT,
@@ -184,6 +185,10 @@ public final class PackageInstallerCompat {
             INSTALL_ALLOW_DOWNGRADE_API29,
             INSTALL_STAGED,
             INSTALL_DRY_RUN,
+            INSTALL_BYPASS_LOW_TARGET_SDK_BLOCK,
+            INSTALL_REQUEST_UPDATE_OWNERSHIP,
+            INSTALL_FROM_MANAGED_USER_OR_PROFILE,
+            INSTALL_IGNORE_DEXOPT_PROFILE,
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface InstallFlags {
@@ -251,9 +256,11 @@ public final class PackageInstallerCompat {
      * permissions should be granted to the package. If {@link #INSTALL_ALL_USERS}
      * is set the runtime permissions will be granted to all users, otherwise
      * only to the owner.
+     * <p>
+     * Previously called {@code #INSTALL_GRANT_RUNTIME_PERMISSIONS}
      */
     @RequiresApi(Build.VERSION_CODES.M)
-    public static final int INSTALL_GRANT_RUNTIME_PERMISSIONS = 0x00000100;
+    public static final int INSTALL_GRANT_ALL_REQUESTED_PERMISSIONS = 0x00000100;
 
     /**
      * Flag parameter for {@code #installPackage} to indicate that all restricted
@@ -278,9 +285,11 @@ public final class PackageInstallerCompat {
     /**
      * Flag parameter for {@code #installPackage} to indicate that this package is
      * to be installed as a lightweight "ephemeral" app.
+     * <p>
+     * Previously known as {@code #INSTALL_EPHEMERAL}
      */
     @RequiresApi(Build.VERSION_CODES.N)
-    public static final int INSTALL_INSTANT_APP = 0x00000800;  // AKA INSTALL_EPHEMERAL
+    public static final int INSTALL_INSTANT_APP = 0x00000800;
 
     /**
      * Flag parameter for {@code #installPackage} to indicate that this package contains
@@ -294,7 +303,7 @@ public final class PackageInstallerCompat {
      * Flag parameter for {@code #installPackage} to indicate that this package is an
      * upgrade to a package that refers to the SDK via release letter.
      *
-     * @deprecated Removed in API 20 (Android 10)
+     * @deprecated Removed in API 29 (Android 10)
      */
     @Deprecated
     @RequiresApi(Build.VERSION_CODES.N)
@@ -361,8 +370,12 @@ public final class PackageInstallerCompat {
     /**
      * Flag parameter for {@code #installPackage} to indicate that package should only be verified
      * but not installed.
+     *
+     * @deprecated Removed in API 30 (Android 11)
      */
+    @SuppressWarnings("DeprecatedIsStillUsed")
     @RequiresApi(Build.VERSION_CODES.Q)
+    @Deprecated
     public static final int INSTALL_DRY_RUN = 0x00800000;
 
     /**
@@ -375,6 +388,38 @@ public final class PackageInstallerCompat {
     @SuppressWarnings("DeprecatedIsStillUsed")
     @Deprecated
     public static final int INSTALL_ALLOW_DOWNGRADE = 0x00000080;
+
+    /**
+     * Flag parameter for {@code #installPackage} to bypass the low targer sdk version block
+     * for this install.
+     */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    public static final int INSTALL_BYPASS_LOW_TARGET_SDK_BLOCK = 0x01000000;
+
+    /**
+     * Flag parameter for {@link PackageInstaller.SessionParams} to indicate that the
+     * update ownership enforcement is requested.
+     */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    public static final int INSTALL_REQUEST_UPDATE_OWNERSHIP = 1 << 25;
+
+    /**
+     * Flag parameter for {@link PackageInstaller.SessionParams} to indicate that this
+     * session is from a managed user or profile.
+     */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    public static final int INSTALL_FROM_MANAGED_USER_OR_PROFILE = 1 << 26;
+
+    /**
+     * If set, all dexopt profiles are ignored by dexopt during the installation, including the
+     * profile in the DM file and the profile embedded in the APK file. If an invalid profile is
+     * provided during installation, no warning will be reported by {@code adb install}.
+     * <p>
+     * This option does not affect later dexopt operations (e.g., background dexopt and manual `pm
+     * compile` invocations).
+     */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    public static final int INSTALL_IGNORE_DEXOPT_PROFILE = 1 << 28;
 
     @SuppressLint({"NewApi", "InlinedApi"})
     @IntDef(flag = true, value = {
@@ -431,8 +476,9 @@ public final class PackageInstallerCompat {
         // MIUI-begin: MIUI 12.5+ workaround
 
         /**
-         * MIUI 12.5+ may require more than one tries in order to have successful installations. This is only needed
-         * during APK installations, not APK uninstallations or install-existing attempts.
+         * MIUI 12.5+ may require more than one tries in order to have successful installations.
+         * This is only needed during APK installations, not APK uninstallations or install-existing
+         * attempts.
          *
          * @param apkFile Underlying APK file if available.
          */
@@ -440,6 +486,20 @@ public final class PackageInstallerCompat {
         default void onAnotherAttemptInMiui(@Nullable ApkFile apkFile) {
         }
         // MIUI-end
+
+        // HyperOS-begin: HyperOS 2.0+ workaround
+
+        /**
+         * In HyperOS 2.0+, the installer for the system apps must be another system app. The
+         * overridden method must set the package installer to a valid system app. This is only
+         * needed during APK installations, not APK uninstallations or install-existing attempts.
+         *
+         * @param apkFile Underlying APK file if available.
+         */
+        @WorkerThread
+        default void onSecondAttemptInHyperOsWithoutInstaller(@Nullable ApkFile apkFile) {
+        }
+        // HyperOS-end
 
         @WorkerThread
         void onFinishedInstall(int sessionId, String packageName, int result, @Nullable String blockingPackage,
@@ -546,7 +606,7 @@ public final class PackageInstallerCompat {
         ThreadUtils.ensureWorkerThread();
         try {
             mApkFile = apkFile;
-            mPackageName = apkFile.getPackageName();
+            mPackageName = Objects.requireNonNull(apkFile.getPackageName());
             initBroadcastReceiver();
             int userId = options.getUserId();
             int installFlags = getInstallFlags(userId);
@@ -573,7 +633,10 @@ public final class PackageInstallerCompat {
             });
             userId = allRequestedUsers[0];
             Log.d(TAG, "Install: opening session...");
-            if (!openSession(userId, installFlags, options.getInstallerName(), options.getInstallLocation())) {
+            if (!openSession(userId, installFlags, options.getInstallerName(),
+                    options.getInstallLocation(), options.getOriginatingPackage(),
+                    options.getOriginatingUri(), options.getInstallScenario(),
+                    options.getPackageSource(), options.requestUpdateOwnership())) {
                 return false;
             }
             List<ApkFile.Entry> selectedEntries = new ArrayList<>();
@@ -626,7 +689,7 @@ public final class PackageInstallerCompat {
         ThreadUtils.ensureWorkerThread();
         try {
             mApkFile = null;
-            mPackageName = packageName;
+            mPackageName = Objects.requireNonNull(packageName);
             initBroadcastReceiver();
             int userId = options.getUserId();
             int installFlags = getInstallFlags(userId);
@@ -645,7 +708,10 @@ public final class PackageInstallerCompat {
                 }
             }
             userId = allRequestedUsers[0];
-            if (!openSession(userId, installFlags, options.getInstallerName(), options.getInstallLocation())) {
+            if (!openSession(userId, installFlags, options.getInstallerName(),
+                    options.getInstallLocation(), options.getOriginatingPackage(),
+                    options.getOriginatingUri(), options.getInstallScenario(),
+                    options.getPackageSource(), options.requestUpdateOwnership())) {
                 return false;
             }
             long totalSize = 0;
@@ -692,6 +758,7 @@ public final class PackageInstallerCompat {
             Log.d(TAG, "Commit: Calling activity to request permission...");
             intentReceiver = null;
             Intent callbackIntent = new Intent(PackageInstallerBroadcastReceiver.ACTION_PI_RECEIVER);
+            callbackIntent.setPackage(BuildConfig.APPLICATION_ID);
             PendingIntent pendingIntent = PendingIntentCompat.getBroadcast(mContext, 0, callbackIntent, 0, true);
             sender = pendingIntent.getIntentSender();
         }
@@ -732,7 +799,11 @@ public final class PackageInstallerCompat {
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private boolean openSession(@UserIdInt int userId, @InstallFlags int installFlags, String installerName, int installLocation) {
+    private boolean openSession(@UserIdInt int userId, @InstallFlags int installFlags,
+                                String installerName, int installLocation,
+                                @Nullable String originatingPackage, @Nullable Uri originatingUri,
+                                int installScenario, int packageSource,
+                                boolean requestUpdateOwnership) {
         String requestedInstallerPackageName = mHasInstallPackagePermission ? installerName : null;
         String installerPackageName = Build.VERSION.SDK_INT < Build.VERSION_CODES.P && mHasInstallPackagePermission
                 ? installerName : BuildConfig.APPLICATION_ID;
@@ -753,11 +824,36 @@ public final class PackageInstallerCompat {
         }
         // Set installation location
         sessionParams.setInstallLocation(installLocation);
+        // Set origin
+        if (originatingUri != null) {
+            sessionParams.setOriginatingUri(originatingUri);
+        }
+        if (originatingPackage != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            int uid = PackageUtils.getAppUid(new UserPackagePair(originatingPackage,
+                    UserHandleHidden.myUserId()));
+            if (uid >= 0) {
+                sessionParams.setOriginatingUid(uid);
+                Log.d(TAG, "Setting originating uid: %d for %s", uid, originatingPackage);
+            }
+        }
+        // Set install reason
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             sessionParams.setInstallReason(PackageManager.INSTALL_REASON_USER);
         }
+        // Set install user action and install scenario
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // We hope system will not prompt an install confirmation
             sessionParams.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED);
+            sessionParams.setInstallScenario(installScenario);
+        }
+        // Set package source (shell uses PACKAGE_SOURCE_OTHER)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            sessionParams.setPackageSource(packageSource);
+        }
+        // Set ownership (disable by default in shell)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            sessionParams.setApplicationEnabledSettingPersistent();
+            sessionParams.setRequestUpdateOwnership(requestUpdateOwnership);
         }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -787,9 +883,12 @@ public final class PackageInstallerCompat {
 
     @InstallFlags
     private static int getInstallFlags(@UserIdInt int userId) {
-        int flags = INSTALL_ALLOW_TEST | INSTALL_REPLACE_EXISTING | INSTALL_ALLOW_DOWNGRADE;
+        int flags = INSTALL_ALLOW_TEST | INSTALL_REPLACE_EXISTING;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             flags |= INSTALL_ALLOW_DOWNGRADE_API29;
+        } else flags |= INSTALL_ALLOW_DOWNGRADE;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            flags |= INSTALL_BYPASS_LOW_TARGET_SDK_BLOCK;
         }
         if (userId == UserHandleHidden.USER_ALL) {
             flags |= INSTALL_ALL_USERS;
@@ -799,6 +898,7 @@ public final class PackageInstallerCompat {
 
     public boolean installExisting(@NonNull String packageName, @UserIdInt int userId) {
         ThreadUtils.ensureWorkerThread();
+        mPackageName = Objects.requireNonNull(packageName);
         if (mOnInstallListener != null) {
             mOnInstallListener.onStartInstall(mSessionId, packageName);
         }
@@ -948,25 +1048,45 @@ public final class PackageInstallerCompat {
                                   @Nullable String blockingPackage,
                                   @Nullable String statusMessage) {
         ThreadUtils.ensureWorkerThread();
-        // MIUI-begin: In MIUI 12.5 and 20.2.0, it might be required to try installing the APK files more than once.
         if (finalStatus == STATUS_FAILURE_ABORTED
                 && mSessionId == sessionId
-                && mOnInstallListener != null
-                && !SelfPermissions.checkSelfPermission(Manifest.permission.INSTALL_PACKAGES)
-                && MiuiUtils.isActualMiuiVersionAtLeast("12.5", "20.2.0")
-                && Objects.equals(statusMessage, "INSTALL_FAILED_ABORTED: Permission denied")
-                && mAttempts <= 3) {
-            // Try once more
-            ++mAttempts;
-            Log.i(TAG, "MIUI: Installation attempt no %d for package %s", mAttempts, mPackageName);
-            mInteractionWatcher.countDown();
-            mInstallWatcher.countDown();
-            // Remove old broadcast receivers
-            unregisterReceiver();
-            mOnInstallListener.onAnotherAttemptInMiui(mApkFile);
-            return;
+                && mOnInstallListener != null) {
+            boolean privileged = SelfPermissions.checkSelfPermission(Manifest.permission.INSTALL_PACKAGES);
+            // MIUI-begin: In MIUI 12.5 and 20.2.0, it might be required to try installing the APK files more than once.
+            if (!privileged
+                    && MiuiUtils.isActualMiuiVersionAtLeast("12.5", "20.2.0")
+                    && Objects.equals(statusMessage, "INSTALL_FAILED_ABORTED: Permission denied")
+                    && mAttempts <= 3) {
+                // Try once more
+                ++mAttempts;
+                Log.i(TAG, "MIUI: Installation attempt no %d for package %s", mAttempts, mPackageName);
+                mInteractionWatcher.countDown();
+                mInstallWatcher.countDown();
+                // Remove old broadcast receivers
+                unregisterReceiver();
+                mOnInstallListener.onAnotherAttemptInMiui(mApkFile);
+                return;
+            }
+            // MIUI-end
+            // HyperOS-begin: In HyperOS 2.0, installer package needs to be altered
+            if (privileged
+                    // TODO: 1/10/25 Check for HyperOS?
+                    && statusMessage != null
+                    && statusMessage.startsWith("INSTALL_FAILED_HYPEROS_ISOLATION_VIOLATION: ")
+                    && mAttempts <= 2) {
+                // Try a second time with installer set to shell
+                ++mAttempts;
+                Log.i(TAG, "HyperOS: %s", statusMessage);
+                Log.i(TAG, "HyperOS: Second attempt for %s", mPackageName);
+                mInteractionWatcher.countDown();
+                mInstallWatcher.countDown();
+                // Remove old broadcast receivers
+                unregisterReceiver();
+                mOnInstallListener.onSecondAttemptInHyperOsWithoutInstaller(mApkFile);
+                return;
+            }
+            // HyperOS-end
         }
-        // MIUI-end
         // No need to check package name since it's been checked before
         if (finalStatus == STATUS_FAILURE_SESSION_CREATE || (mSessionId == sessionId)) {
             if (mOnInstallListener != null) {
@@ -985,7 +1105,7 @@ public final class PackageInstallerCompat {
     public boolean uninstall(String packageName, @UserIdInt int userId, boolean keepData) {
         ThreadUtils.ensureWorkerThread();
         boolean hasDeletePackagesPermission = SelfPermissions.checkSelfOrRemotePermission(Manifest.permission.DELETE_PACKAGES);
-        mPackageName = packageName;
+        mPackageName = Objects.requireNonNull(packageName);
         String callerPackageName = SelfPermissions.getCallingPackage(Users.getSelfOrRemoteUid());
         initBroadcastReceiver();
         try {
@@ -1029,6 +1149,7 @@ public final class PackageInstallerCompat {
                 Log.d(TAG, "Uninstall: Calling activity to request permission...");
                 intentReceiver = null;
                 Intent callbackIntent = new Intent(PackageInstallerBroadcastReceiver.ACTION_PI_RECEIVER);
+                callbackIntent.setPackage(BuildConfig.APPLICATION_ID);
                 PendingIntent pendingIntent = PendingIntentCompat.getBroadcast(mContext, 0, callbackIntent, 0, true);
                 sender = pendingIntent.getIntentSender();
             }
@@ -1171,18 +1292,21 @@ public final class PackageInstallerCompat {
         mPkgInstallerReceiver = new PackageInstallerBroadcastReceiver();
         mPkgInstallerReceiver.setAppLabel(mAppLabel);
         mPkgInstallerReceiver.setPackageName(mPackageName);
-        mContext.registerReceiver(mPkgInstallerReceiver, new IntentFilter(PackageInstallerBroadcastReceiver.ACTION_PI_RECEIVER));
+        ContextCompat.registerReceiver(mContext, mPkgInstallerReceiver,
+                new IntentFilter(PackageInstallerBroadcastReceiver.ACTION_PI_RECEIVER),
+                ContextCompat.RECEIVER_NOT_EXPORTED);
         // Add receivers
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(ACTION_INSTALL_COMPLETED);
         intentFilter.addAction(ACTION_INSTALL_STARTED);
         intentFilter.addAction(ACTION_INSTALL_INTERACTION_BEGIN);
         intentFilter.addAction(ACTION_INSTALL_INTERACTION_END);
-        mContext.registerReceiver(mBroadcastReceiver, intentFilter);
+        ContextCompat.registerReceiver(mContext, mBroadcastReceiver, intentFilter, ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     private void sendStartedBroadcast(@NonNull String packageName, int sessionId) {
         Intent broadcastIntent = new Intent(ACTION_INSTALL_STARTED);
+        broadcastIntent.setPackage(mContext.getPackageName());
         broadcastIntent.putExtra(PackageInstaller.EXTRA_PACKAGE_NAME, packageName);
         broadcastIntent.putExtra(PackageInstaller.EXTRA_SESSION_ID, sessionId);
         mContext.sendBroadcast(broadcastIntent);
@@ -1191,6 +1315,7 @@ public final class PackageInstallerCompat {
     static void sendCompletedBroadcast(@NonNull Context context, @NonNull String packageName, @Status int status,
                                        int sessionId) {
         Intent broadcastIntent = new Intent(ACTION_INSTALL_COMPLETED);
+        broadcastIntent.setPackage(context.getPackageName());
         broadcastIntent.putExtra(PackageInstaller.EXTRA_PACKAGE_NAME, packageName);
         broadcastIntent.putExtra(PackageInstaller.EXTRA_STATUS, status);
         broadcastIntent.putExtra(PackageInstaller.EXTRA_SESSION_ID, sessionId);

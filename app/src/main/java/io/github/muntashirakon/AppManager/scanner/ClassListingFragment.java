@@ -22,9 +22,10 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
+import androidx.core.view.MenuProvider;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.ViewModelProvider;
-import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.google.android.material.card.MaterialCardView;
 
@@ -32,16 +33,18 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 import io.github.muntashirakon.AppManager.R;
 import io.github.muntashirakon.AppManager.editor.CodeEditorActivity;
 import io.github.muntashirakon.AppManager.misc.AdvancedSearchView;
 import io.github.muntashirakon.AppManager.utils.UIUtils;
 import io.github.muntashirakon.AppManager.utils.appearance.ColorCodes;
+import io.github.muntashirakon.util.AdapterUtils;
 import io.github.muntashirakon.util.UiUtils;
 import io.github.muntashirakon.widget.RecyclerView;
 
-public class ClassListingFragment extends Fragment implements AdvancedSearchView.OnQueryTextListener {
+public class ClassListingFragment extends Fragment implements AdvancedSearchView.OnQueryTextListener, MenuProvider {
     private TextView mEmptyView;
     private boolean mTrackerClassesOnly;
     private ClassListingAdapter mClassListingAdapter;
@@ -50,10 +53,6 @@ public class ClassListingFragment extends Fragment implements AdvancedSearchView
     private List<String> mTrackerClasses;
     private ScannerViewModel mViewModel;
     private ScannerActivity mActivity;
-
-    public ClassListingFragment() {
-        setHasOptionsMenu(true);
-    }
 
     @Nullable
     @Override
@@ -82,8 +81,9 @@ public class ClassListingFragment extends Fragment implements AdvancedSearchView
         mEmptyView = view.findViewById(android.R.id.empty);
         listView.setEmptyView(mEmptyView);
         mClassListingAdapter = new ClassListingAdapter(mActivity, mViewModel);
-        listView.setLayoutManager(new LinearLayoutManager(mActivity));
+        listView.setLayoutManager(UIUtils.getGridLayoutAt450Dp(mActivity));
         listView.setAdapter(mClassListingAdapter);
+        mActivity.addMenuProvider(this, getViewLifecycleOwner(), Lifecycle.State.RESUMED);
         showProgress(true);
         setAdapterList();
     }
@@ -122,20 +122,19 @@ public class ClassListingFragment extends Fragment implements AdvancedSearchView
     }
 
     @Override
-    public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
+    public void onCreateMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
         inflater.inflate(R.menu.fragment_class_lister_actions, menu);
         AdvancedSearchView searchView = (AdvancedSearchView) menu.findItem(R.id.action_search).getActionView();
-        searchView.setOnQueryTextListener(this);
-        super.onCreateOptionsMenu(menu, inflater);
+        Objects.requireNonNull(searchView).setOnQueryTextListener(this);
     }
 
     @Override
-    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+    public boolean onMenuItemSelected(@NonNull MenuItem item) {
         int id = item.getItemId();
         if (id == R.id.action_toggle_class_listing) {
             mTrackerClassesOnly = !mTrackerClassesOnly;
             setAdapterList();
-        } else return super.onOptionsItemSelected(item);
+        } else return false;
         return true;
     }
 
@@ -168,18 +167,15 @@ public class ClassListingFragment extends Fragment implements AdvancedSearchView
 
         @UiThread
         void setDefaultList(@NonNull List<String> list) {
-            synchronized (mAdapterList) {
-                mAdapterList.clear();
-                mAdapterList.addAll(list);
-            }
             mDefaultList = list;
             filter();
-            notifyDataSetChanged();
         }
 
         void filter() {
             if (!TextUtils.isEmpty(mConstraint)) {
                 filter(mConstraint, mFilterType);
+            } else {
+                AdapterUtils.notifyDataSetChanged(this, mAdapterList, mDefaultList);
             }
         }
 
@@ -246,7 +242,7 @@ public class ClassListingFragment extends Fragment implements AdvancedSearchView
                         String constraint = mFilterType == SEARCH_TYPE_REGEX ? charSequence.toString()
                                 : charSequence.toString().toLowerCase(Locale.ROOT);
                         FilterResults filterResults = new FilterResults();
-                        if (constraint.length() == 0) {
+                        if (constraint.isEmpty()) {
                             filterResults.count = 0;
                             filterResults.values = null;
                             return filterResults;
@@ -269,12 +265,11 @@ public class ClassListingFragment extends Fragment implements AdvancedSearchView
                         synchronized (mAdapterList) {
                             mAdapterList.clear();
                             if (filterResults.values == null) {
-                                mAdapterList.addAll(mDefaultList);
+                                AdapterUtils.notifyDataSetChanged(ClassListingAdapter.this, mAdapterList, mDefaultList);
                             } else {
                                 //noinspection unchecked
-                                mAdapterList.addAll((List<String>) filterResults.values);
+                                AdapterUtils.notifyDataSetChanged(ClassListingAdapter.this, mAdapterList, (List<String>) filterResults.values);
                             }
-                            notifyDataSetChanged();
                         }
                     }
                 };

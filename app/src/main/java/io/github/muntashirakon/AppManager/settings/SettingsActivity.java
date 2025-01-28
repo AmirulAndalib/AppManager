@@ -26,8 +26,6 @@ import java.util.Objects;
 import io.github.muntashirakon.AppManager.BaseActivity;
 import io.github.muntashirakon.AppManager.R;
 import io.github.muntashirakon.AppManager.logs.Log;
-import io.github.muntashirakon.AppManager.self.life.BuildExpiryChecker;
-import io.github.muntashirakon.AppManager.self.life.FundingCampaignChecker;
 
 public class SettingsActivity extends BaseActivity implements PreferenceFragmentCompat.OnPreferenceStartFragmentCallback {
     public static final String TAG = SettingsActivity.class.getSimpleName();
@@ -72,11 +70,6 @@ public class SettingsActivity extends BaseActivity implements PreferenceFragment
         progressIndicator.setVisibilityAfterHide(View.GONE);
         progressIndicator.hide();
 
-        View buildExpiringNotice = findViewById(R.id.app_manager_expiring_notice);
-        buildExpiringNotice.setVisibility(BuildExpiryChecker.buildExpired() == null ? View.VISIBLE : View.GONE);
-        View fundingCampaignNotice = findViewById(R.id.funding_campaign_notice);
-        fundingCampaignNotice.setVisibility(FundingCampaignChecker.campaignRunning() ? View.VISIBLE : View.GONE);
-
         if (savedInstanceState != null) {
             clearBackStack();
             mSavedKeys = savedInstanceState.getStringArrayList(SAVED_KEYS);
@@ -100,6 +93,12 @@ public class SettingsActivity extends BaseActivity implements PreferenceFragment
 
         getSupportFragmentManager()
                 .beginTransaction()
+                .setCustomAnimations(
+                        R.animator.enter_from_left,
+                        R.animator.enter_from_right,
+                        R.animator.exit_from_right,
+                        R.animator.exit_from_left
+                )
                 .replace(R.id.main_layout, MainPreferences.getInstance(getKey(mLevel)))
                 .commit();
     }
@@ -149,6 +148,12 @@ public class SettingsActivity extends BaseActivity implements PreferenceFragment
         // The line below is kept because this is how it is handled in AndroidX library
         fragment.setTargetFragment(caller, 0);
         fragmentManager.beginTransaction()
+                .setCustomAnimations(
+                        R.animator.enter_from_left,
+                        R.animator.enter_from_right,
+                        R.animator.exit_from_right,
+                        R.animator.exit_from_left
+                )
                 .replace(R.id.main_layout, fragment)
                 .addToBackStack(null)
                 .commit();

@@ -2,6 +2,7 @@
 
 package io.github.muntashirakon.AppManager.backup.dialog;
 
+import android.annotation.UserIdInt;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -40,6 +41,8 @@ import java.util.Objects;
 import io.github.muntashirakon.AppManager.R;
 import io.github.muntashirakon.AppManager.batchops.BatchOpsManager;
 import io.github.muntashirakon.AppManager.batchops.BatchOpsService;
+import io.github.muntashirakon.AppManager.batchops.BatchQueueItem;
+import io.github.muntashirakon.AppManager.batchops.struct.BatchBackupOptions;
 import io.github.muntashirakon.AppManager.types.UserPackagePair;
 import io.github.muntashirakon.AppManager.users.UserInfo;
 import io.github.muntashirakon.AppManager.utils.ArrayUtils;
@@ -52,14 +55,25 @@ import io.github.muntashirakon.dialog.SearchableMultiChoiceDialogBuilder;
 public class BackupRestoreDialogFragment extends CapsuleBottomSheetDialogFragment {
     public static final String TAG = BackupRestoreDialogFragment.class.getSimpleName();
 
-    private static final String ARG_PACKAGE_PAIRS = "ARG_PACKAGE_PAIRS";
-    private static final String ARG_CUSTOM_MODE = "ARG_CUSTOM_MODE";
+    private static final String ARG_PACKAGE_PAIRS = "pkg_pairs";
+    private static final String ARG_CUSTOM_MODE = "custom_mode";
+    private static final String ARG_PREFERRED_USER_FOR_RESTORE = "pref_user_restore";
 
     @NonNull
     public static BackupRestoreDialogFragment getInstance(@NonNull List<UserPackagePair> userPackagePairs) {
         BackupRestoreDialogFragment fragment = new BackupRestoreDialogFragment();
         Bundle args = new Bundle();
-        args.putParcelableArrayList(BackupRestoreDialogFragment.ARG_PACKAGE_PAIRS, new ArrayList<>(userPackagePairs));
+        args.putParcelableArrayList(ARG_PACKAGE_PAIRS, new ArrayList<>(userPackagePairs));
+        fragment.setArguments(args);
+        return fragment;
+    }
+
+    @NonNull
+    public static BackupRestoreDialogFragment getInstanceWithPref(@NonNull List<UserPackagePair> userPackagePairs, @UserIdInt int preferredUserForRestore) {
+        BackupRestoreDialogFragment fragment = new BackupRestoreDialogFragment();
+        Bundle args = new Bundle();
+        args.putParcelableArrayList(ARG_PACKAGE_PAIRS, new ArrayList<>(userPackagePairs));
+        args.putInt(ARG_PREFERRED_USER_FOR_RESTORE, preferredUserForRestore);
         fragment.setArguments(args);
         return fragment;
     }
@@ -153,6 +167,10 @@ public class BackupRestoreDialogFragment extends CapsuleBottomSheetDialogFragmen
         Bundle args = requireArguments();
         List<UserPackagePair> targetPackages = args.getParcelableArrayList(ARG_PACKAGE_PAIRS);
         mCustomModes = args.getInt(ARG_CUSTOM_MODE, MODE_BACKUP | MODE_RESTORE | MODE_DELETE);
+        int preferredUserForRestore = args.getInt(ARG_PREFERRED_USER_FOR_RESTORE, -1);
+        if (preferredUserForRestore >= 0) {
+            mViewModel.setPreferredUserForRestore(preferredUserForRestore);
+        }
 
         mDialogTitleBuilder = new DialogTitleBuilder(requireContext())
                 .setTitle(R.string.backup_restore)
@@ -238,13 +256,17 @@ public class BackupRestoreDialogFragment extends CapsuleBottomSheetDialogFragmen
         finishLoading();
     }
 
+    public BackupFragment getBackupFragment() {
+        return BackupFragment.getInstance(mViewModel.allowCustomUsersInBackup());
+    }
+
     private void loadMultipleBackupFragment() {
         mDialogTitleBuilder.setTitle(R.string.backup);
         setHeader(mDialogTitleBuilder.build());
         finishLoading();
         getChildFragmentManager()
                 .beginTransaction()
-                .replace(R.id.fragment_container_view_tag, BackupFragment.getInstance())
+                .replace(R.id.fragment_container_view_tag, getBackupFragment())
                 .commit();
     }
 
@@ -263,7 +285,7 @@ public class BackupRestoreDialogFragment extends CapsuleBottomSheetDialogFragmen
 
         mTabTitles = getResources().obtainTypedArray(R.array.backup_restore_tabs_multiple);
         mTabFragments = new Fragment[mTabTitles.length()];
-        mTabFragments[0] = BackupFragment.getInstance();
+        mTabFragments[0] = getBackupFragment();
         mTabFragments[1] = RestoreMultipleFragment.getInstance();
         getBody().findViewById(R.id.container).setVisibility(View.VISIBLE);
         ViewPager2 viewPager = getBody().findViewById(R.id.pager);
@@ -289,7 +311,7 @@ public class BackupRestoreDialogFragment extends CapsuleBottomSheetDialogFragmen
         finishLoading();
         getChildFragmentManager()
                 .beginTransaction()
-                .replace(R.id.fragment_container_view_tag, BackupFragment.getInstance())
+                .replace(R.id.fragment_container_view_tag, getBackupFragment())
                 .commit();
     }
 
@@ -308,7 +330,7 @@ public class BackupRestoreDialogFragment extends CapsuleBottomSheetDialogFragmen
 
         mTabTitles = getResources().obtainTypedArray(R.array.backup_restore_tabs_single);
         mTabFragments = new Fragment[mTabTitles.length()];
-        mTabFragments[0] = BackupFragment.getInstance();
+        mTabFragments[0] = getBackupFragment();
         mTabFragments[1] = RestoreSingleFragment.getInstance();
         getBody().findViewById(R.id.container).setVisibility(View.VISIBLE);
         ViewPager2 viewPager = getBody().findViewById(R.id.pager);
@@ -343,7 +365,7 @@ public class BackupRestoreDialogFragment extends CapsuleBottomSheetDialogFragmen
                 .addSelections(Collections.singletonList(UserHandleHidden.myUserId()))
                 .showSelectAll(false)
                 .setPositiveButton(R.string.ok, (dialog, which, selectedUsers) -> {
-                    if (selectedUsers.size() > 0) {
+                    if (!selectedUsers.isEmpty()) {
                         operationInfo.selectedUsers = ArrayUtils.convertToIntArray(selectedUsers);
                     }
                     mViewModel.prepareForOperation(operationInfo);
@@ -374,16 +396,14 @@ public class BackupRestoreDialogFragment extends CapsuleBottomSheetDialogFragmen
         if (mActionBeginInterface != null) {
             mActionBeginInterface.onActionBegin(operationInfo.mode);
         }
-        mActivity.registerReceiver(mBatchOpsBroadCastReceiver, new IntentFilter(BatchOpsService.ACTION_BATCH_OPS_COMPLETED));
+        ContextCompat.registerReceiver(mActivity, mBatchOpsBroadCastReceiver,
+                new IntentFilter(BatchOpsService.ACTION_BATCH_OPS_COMPLETED), ContextCompat.RECEIVER_NOT_EXPORTED);
         // Start batch ops service
         Intent intent = new Intent(mActivity, BatchOpsService.class);
-        intent.putStringArrayListExtra(BatchOpsService.EXTRA_OP_PKG, operationInfo.packageList);
-        intent.putIntegerArrayListExtra(BatchOpsService.EXTRA_OP_USERS, operationInfo.userIdListMappedToPackageList);
-        intent.putExtra(BatchOpsService.EXTRA_OP, operationInfo.op);
-        Bundle args = new Bundle();
-        args.putInt(BatchOpsManager.ARG_FLAGS, operationInfo.flags);
-        args.putStringArray(BatchOpsManager.ARG_BACKUP_NAMES, operationInfo.backupNames);
-        intent.putExtra(BatchOpsService.EXTRA_OP_EXTRA_ARGS, args);
+        BatchBackupOptions options = new BatchBackupOptions(operationInfo.flags, operationInfo.backupNames);
+        BatchQueueItem queueItem = BatchQueueItem.getBatchOpQueue(operationInfo.op,
+                operationInfo.packageList, operationInfo.userIdListMappedToPackageList, options);
+        intent.putExtra(BatchOpsService.EXTRA_QUEUE_ITEM, queueItem);
         ContextCompat.startForegroundService(mActivity, intent);
         dismiss();
     }

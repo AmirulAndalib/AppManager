@@ -19,9 +19,9 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.compat.PackageManagerCompat;
 import io.github.muntashirakon.AppManager.utils.NotificationUtils;
 import io.github.muntashirakon.AppManager.utils.UIUtils;
-import io.github.muntashirakon.AppManager.utils.Utils;
 
 public final class FreezeUnfreeze {
     @IntDef(flag = true, value = {
@@ -71,14 +71,12 @@ public final class FreezeUnfreeze {
     }
 
     static void launchApp(@NonNull FragmentActivity activity, @NonNull FreezeUnfreezeShortcutInfo shortcutInfo) {
-        if (shortcutInfo.userId != UserHandleHidden.myUserId()) {
-            return;
-        }
-        Intent launchIntent = Utils.isTv(activity) ? activity.getPackageManager().getLeanbackLaunchIntentForPackage(shortcutInfo.packageName)
-                : activity.getPackageManager().getLaunchIntentForPackage(shortcutInfo.packageName);
+        Intent launchIntent = PackageManagerCompat.getLaunchIntentForPackage(shortcutInfo.packageName, shortcutInfo.userId);
         if (launchIntent == null) {
+            // No launch intent found
             return;
         }
+        // launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_TASK_ON_HOME | Intent.FLAG_ACTIVITY_NEW_DOCUMENT);
         if ((shortcutInfo.flags & FLAG_ON_OPEN_APP_NO_TASK) != 0) {
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
         }

@@ -10,12 +10,16 @@ import android.os.Bundle;
 import android.view.Menu;
 import android.widget.TextView;
 
+import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.CallSuper;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.view.menu.MenuBuilder;
+import androidx.biometric.BiometricPrompt;
+import androidx.core.content.ContextCompat;
 import androidx.core.splashscreen.SplashScreen;
 import androidx.lifecycle.ViewModelProvider;
 
@@ -25,6 +29,7 @@ import java.util.Locale;
 
 import io.github.muntashirakon.AppManager.BuildConfig;
 import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.compat.BiometricAuthenticatorsCompat;
 import io.github.muntashirakon.AppManager.crypto.ks.KeyStoreActivity;
 import io.github.muntashirakon.AppManager.crypto.ks.KeyStoreManager;
 import io.github.muntashirakon.AppManager.logs.Log;
@@ -41,29 +46,20 @@ public class SplashActivity extends AppCompatActivity {
     @Nullable
     private TextView mStateNameView;
     private SecurityAndOpsViewModel mViewModel;
+    private BiometricPrompt mBiometricPrompt;
 
     private final ActivityResultLauncher<Intent> mKeyStoreActivity = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(), result -> {
                 // Need authentication and/or verify mode of operation
                 ensureSecurityAndModeOfOp();
             });
-    private final ActivityResultLauncher<Intent> mAuthActivity = registerForActivityResult(
-            new ActivityResultContracts.StartActivityForResult(), result -> {
-                if (result.getResultCode() == RESULT_OK) {
-                    // Success
-                    handleMigrationAndModeOfOp();
-                } else {
-                    // Authentication failed
-                    finishAndRemoveTask();
-                }
-            });
 
     @Override
     protected final void onCreate(@Nullable Bundle savedInstanceState) {
-        // Set theme
         setTheme(Prefs.Appearance.isPureBlackTheme() ? R.style.AppTheme_Splash_Black : R.style.AppTheme_Splash);
-        super.onCreate(savedInstanceState);
         SplashScreen.installSplashScreen(this);
+        EdgeToEdge.enable(this);
+        super.onCreate(savedInstanceState);
         DynamicColors.applyToActivityIfAvailable(this);
         setContentView(R.layout.activity_authentication);
         ((TextView) findViewById(R.id.version)).setText(String.format(Locale.ROOT, "%s (%d)",
@@ -77,18 +73,51 @@ public class SplashActivity extends AppCompatActivity {
         }
         if (Boolean.TRUE.equals(BuildExpiryChecker.buildExpired())) {
             // Build has expired
-            BuildExpiryChecker.getBuildExpiredDialog(this).show();
+            BuildExpiryChecker.getBuildExpiredDialog(this, (dialog, which) -> doAuthenticate()).show();
             return;
         }
         // Run authentication
+        doAuthenticate();
+    }
+
+    @CallSuper
+    @SuppressLint("RestrictedApi")
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        if (menu instanceof MenuBuilder) {
+            ((MenuBuilder) menu).setOptionalIconsVisible(true);
+        }
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    private void doAuthenticate() {
         mViewModel = new ViewModelProvider(this).get(SecurityAndOpsViewModel.class);
+        mBiometricPrompt = new BiometricPrompt(this, ContextCompat.getMainExecutor(this),
+                new BiometricPrompt.AuthenticationCallback() {
+                    @Override
+                    public void onAuthenticationError(int errorCode, @NonNull CharSequence errString) {
+                        super.onAuthenticationError(errorCode, errString);
+                        finishAndRemoveTask();
+                    }
+
+                    @Override
+                    public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
+                        super.onAuthenticationSucceeded(result);
+                        handleMigrationAndModeOfOp();
+                    }
+
+                    @Override
+                    public void onAuthenticationFailed() {
+                        super.onAuthenticationFailed();
+                    }
+                });
         Log.d(TAG, "Waiting to be authenticated.");
         mViewModel.authenticationStatus().observe(this, status -> {
             switch (status) {
                 case Ops.STATUS_AUTO_CONNECT_WIRELESS_DEBUGGING:
                     Log.d(TAG, "Try auto-connecting to wireless debugging.");
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        mViewModel.autoConnectAdb(Ops.STATUS_WIRELESS_DEBUGGING_CHOOSER_REQUIRED);
+                        mViewModel.autoConnectWirelessDebugging();
                         return;
                     } // fall-through
                 case Ops.STATUS_WIRELESS_DEBUGGING_CHOOSER_REQUIRED:
@@ -120,31 +149,17 @@ public class SplashActivity extends AppCompatActivity {
         });
         if (!mViewModel.isAuthenticating()) {
             mViewModel.setAuthenticating(true);
-            authenticate();
+            // Check KeyStore
+            if (KeyStoreManager.hasKeyStorePassword()) {
+                // We already have a working keystore password.
+                // Only need authentication and/or verify mode of operation.
+                ensureSecurityAndModeOfOp();
+                return;
+            }
+            Intent keyStoreIntent = new Intent(this, KeyStoreActivity.class)
+                    .putExtra(KeyStoreActivity.EXTRA_KS, true);
+            mKeyStoreActivity.launch(keyStoreIntent);
         }
-    }
-
-    @CallSuper
-    @SuppressLint("RestrictedApi")
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        if (menu instanceof MenuBuilder) {
-            ((MenuBuilder) menu).setOptionalIconsVisible(true);
-        }
-        return super.onCreateOptionsMenu(menu);
-    }
-
-    private void authenticate() {
-        // Check KeyStore
-        if (KeyStoreManager.hasKeyStorePassword()) {
-            // We already have a working keystore password.
-            // Only need authentication and/or verify mode of operation.
-            ensureSecurityAndModeOfOp();
-            return;
-        }
-        Intent keyStoreIntent = new Intent(this, KeyStoreActivity.class)
-                .putExtra(KeyStoreActivity.EXTRA_KS, true);
-        mKeyStoreActivity.launch(keyStoreIntent);
     }
 
     private void ensureSecurityAndModeOfOp() {
@@ -157,8 +172,11 @@ public class SplashActivity extends AppCompatActivity {
         KeyguardManager keyguardManager = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
         if (keyguardManager.isKeyguardSecure()) {
             // Screen lock enabled
-            Intent intent = keyguardManager.createConfirmDeviceCredentialIntent(getString(R.string.unlock_app_manager), null);
-            mAuthActivity.launch(intent);
+            BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
+                    .setTitle(getString(R.string.unlock_app_manager))
+                    .setAllowedAuthenticators(new BiometricAuthenticatorsCompat.Builder().allowEverything(true).build())
+                    .build();
+            mBiometricPrompt.authenticate(promptInfo);
         } else {
             // Screen lock disabled
             UIUtils.displayLongToast(R.string.screen_lock_not_enabled);

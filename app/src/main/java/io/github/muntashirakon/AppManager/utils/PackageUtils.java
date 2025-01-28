@@ -17,23 +17,18 @@ import android.app.usage.IStorageStatsManager;
 import android.app.usage.StorageStats;
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.ComponentInfo;
 import android.content.pm.IPackageManager;
 import android.content.pm.IPackageStatsObserver;
-import android.content.pm.LauncherActivityInfo;
-import android.content.pm.LauncherApps;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
-import android.content.pm.Signature;
 import android.content.pm.SigningInfo;
 import android.os.Build;
 import android.os.PowerManager;
 import android.os.RemoteException;
-import android.os.UserHandle;
 import android.os.UserHandleHidden;
 import android.os.storage.StorageManagerHidden;
 import android.system.ErrnoException;
@@ -77,6 +72,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import aosp.libcore.util.EmptyArray;
 import aosp.libcore.util.HexEncoding;
 import io.github.muntashirakon.AppManager.R;
 import io.github.muntashirakon.AppManager.apk.signing.Signer;
@@ -222,6 +218,7 @@ public final class PackageUtils {
             item.blockedCount = app.rulesCount;
             item.trackerCount = app.trackerCount;
             item.lastActionTime = app.lastActionTime;
+            item.generateOtherInfo();
         }
         // Add rest of the backups
         for (String packageName : backups.keySet()) {
@@ -241,6 +238,7 @@ public final class PackageUtils {
             item.isInstalled = false;
             item.hasSplits = backup.hasSplits;
             item.hasKeystore = backup.hasKeyStore;
+            item.generateOtherInfo();
         }
         if (loadInBackground) {
             // Update list of apps safely in the background.
@@ -268,18 +266,13 @@ public final class PackageUtils {
     @NonNull
     public static List<PackageInfo> getAllPackages(int flags, boolean currentUserOnly) {
         if (currentUserOnly) {
-            return ExUtils.requireNonNullElse(() -> PackageManagerCompat.getInstalledPackages(flags,
-                    UserHandleHidden.myUserId()), Collections.emptyList());
+            return PackageManagerCompat.getInstalledPackages(flags, UserHandleHidden.myUserId());
         }
         List<PackageInfo> packageInfoList = new ArrayList<>();
         for (int userId : Users.getUsersIds()) {
-            try {
-                packageInfoList.addAll(PackageManagerCompat.getInstalledPackages(flags, userId));
-                if (ThreadUtils.isInterrupted()) {
-                    break;
-                }
-            } catch (Exception e) {
-                Log.w(TAG, "Could not retrieve package info list for user " + userId, e);
+            packageInfoList.addAll(PackageManagerCompat.getInstalledPackages(flags, userId));
+            if (ThreadUtils.isInterrupted()) {
+                break;
             }
         }
         return packageInfoList;
@@ -329,7 +322,6 @@ public final class PackageUtils {
                 }
                 pm.getPackageSizeInfo(packageName, userHandle,
                         new IPackageStatsObserver.Stub() {
-                            @SuppressWarnings("deprecation")
                             @Override
                             public void onGetStatsCompleted(final android.content.pm.PackageStats pStats, boolean succeeded) {
                                 try {
@@ -476,36 +468,6 @@ public final class PackageUtils {
         return info.requestedPermissions;
     }
 
-    @Nullable
-    public static Intent getLaunchIntentForPackage(@NonNull Context context,
-                                                   @NonNull String packageName,
-                                                   @UserIdInt int userId) {
-        if (userId == UserHandleHidden.myUserId()) {
-            return context.getPackageManager().getLaunchIntentForPackage(packageName);
-        }
-        UserHandle userHandle = Users.getUserHandle(userId);
-        if (userHandle != null) {
-            LauncherApps launcherApps = (LauncherApps) context.getSystemService(Context.LAUNCHER_APPS_SERVICE);
-            try {
-                if (!launcherApps.isPackageEnabled(packageName, userHandle)) {
-                    return null;
-                }
-                List<LauncherActivityInfo> activityInfoList = launcherApps.getActivityList(packageName, userHandle);
-                if (activityInfoList.size() > 0) {
-                    Intent launchIntent = new Intent(Intent.ACTION_MAIN);
-                    launchIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                            | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
-                    launchIntent.setComponent(activityInfoList.get(0).getComponentName());
-                    return launchIntent;
-                }
-            } catch (Throwable th) {
-                th.printStackTrace();
-            }
-        }
-        return null;
-    }
-
     @NonNull
     public static String getPackageLabel(@NonNull PackageManager pm, String packageName) {
         try {
@@ -545,10 +507,6 @@ public final class PackageUtils {
                 PackageManagerCompat.MATCH_STATIC_SHARED_AND_SDK_LIBRARIES, pair.getUserId()).uid, -1);
     }
 
-    public static boolean isTestOnlyApp(@NonNull ApplicationInfo applicationInfo) {
-        return (applicationInfo.flags & ApplicationInfo.FLAG_TEST_ONLY) != 0;
-    }
-
     @NonNull
     public static String getSourceDir(@NonNull ApplicationInfo applicationInfo) {
         String sourceDir = new File(applicationInfo.publicSourceDir).getParent(); // or applicationInfo.sourceDir
@@ -564,7 +522,7 @@ public final class PackageUtils {
         Runner.Result result = Runner.runCommand(RunnerUtils.CMD_PM + " dump " + packageName + " | grep codePath");
         if (result.isSuccessful()) {
             List<String> paths = result.getOutputAsList();
-            if (paths.size() > 0) {
+            if (!paths.isEmpty()) {
                 // Get only the last path
                 String codePath = paths.get(paths.size() - 1);
                 int start = codePath.indexOf('=');
@@ -607,14 +565,6 @@ public final class PackageUtils {
     }
 
     @Nullable
-    public static Signature[] getSigningInfo(@NonNull PackageInfo packageInfo, boolean isExternal) {
-        SignerInfo signerInfo = getSignerInfo(packageInfo, isExternal);
-        if (signerInfo == null) return null;
-        return signerInfo.getAllSignatures();
-    }
-
-    @SuppressWarnings("deprecation")
-    @Nullable
     public static SignerInfo getSignerInfo(@NonNull PackageInfo packageInfo, boolean isExternal) {
         if (!isExternal || Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -633,12 +583,8 @@ public final class PackageUtils {
             // Could be a false-negative, try with apksig library
             String apkPath = packageInfo.applicationInfo.publicSourceDir;
             if (apkPath != null) {
-                Log.w(TAG, "getSigningInfo: Using fallback method");
-                SignerInfo signerInfo = getSignerInfo(new File(apkPath));
-                if (signerInfo != null) {
-                    packageInfo.signatures = signerInfo.getCurrentSignatures();
-                }
-                return signerInfo;
+                Log.w(TAG, "getSignerInfo: Using fallback method");
+                return getSignerInfo(new File(apkPath));
             }
         }
         return new SignerInfo(packageInfo.signatures);
@@ -651,7 +597,7 @@ public final class PackageUtils {
                 .build();
         try {
             return new SignerInfo(apkVerifier.verify());
-        } catch (CertificateEncodingException | IOException | ApkFormatException | NoSuchAlgorithmException e) {
+        } catch (IOException | ApkFormatException | NoSuchAlgorithmException e) {
             e.printStackTrace();
             return null;
         }
@@ -687,14 +633,14 @@ public final class PackageUtils {
                 oldChecksums.remove(newChecksum);
             }
             // Old checksums should contain no values if the checksums are the same
-            return oldChecksums.size() != 0;
+            return !oldChecksums.isEmpty();
         }
         // For single signer, there could be one or more extra certificates for rotation.
-        if (newChecksums.length == 0 && oldChecksums.size() == 0) {
+        if (newChecksums.length == 0 && oldChecksums.isEmpty()) {
             // No signers
             return false;
         }
-        if (newChecksums.length == 0 || oldChecksums.size() == 0) {
+        if (newChecksums.length == 0 || oldChecksums.isEmpty()) {
             // One of them is signed, other doesn't
             return true;
         }
@@ -729,14 +675,19 @@ public final class PackageUtils {
     @NonNull
     public static String[] getSigningCertChecksums(@DigestUtils.Algorithm String algo,
                                                    @Nullable SignerInfo signerInfo) {
-        Signature[] signatureArray = signerInfo == null ? null : signerInfo.getAllSignatures();
-        ArrayList<String> checksums = new ArrayList<>();
+        X509Certificate[] signatureArray = signerInfo == null ? null : signerInfo.getAllSignerCerts();
         if (signatureArray != null) {
-            for (Signature signature : signatureArray) {
-                checksums.add(DigestUtils.getHexDigest(algo, signature.toByteArray()));
+            ArrayList<String> checksums = new ArrayList<>();
+            for (X509Certificate signature : signatureArray) {
+                try {
+                    checksums.add(DigestUtils.getHexDigest(algo, signature.getEncoded()));
+                } catch (CertificateEncodingException e) {
+                    e.printStackTrace();
+                }
             }
+            return checksums.toArray(new String[0]);
         }
-        return checksums.toArray(new String[0]);
+        return EmptyArray.STRING;
     }
 
     @NonNull
@@ -874,6 +825,7 @@ public final class PackageUtils {
             if (result.isVerifiedUsingV1Scheme()) sigSchemes.add("v1");
             if (result.isVerifiedUsingV2Scheme()) sigSchemes.add("v2");
             if (result.isVerifiedUsingV3Scheme()) sigSchemes.add("v3");
+            if (result.isVerifiedUsingV31Scheme()) sigSchemes.add("v3.1");
             if (result.isVerifiedUsingV4Scheme()) sigSchemes.add("v4");
             builder.append("\n").append(getPrimaryText(ctx, ctx.getResources()
                     .getQuantityString(R.plurals.app_signing_signature_schemes_pl, sigSchemes.size()) + LangUtils.getSeparatorString()));

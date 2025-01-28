@@ -23,7 +23,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -38,7 +39,6 @@ import io.github.muntashirakon.AppManager.misc.AdvancedSearchView;
 import io.github.muntashirakon.AppManager.runner.Runner;
 import io.github.muntashirakon.AppManager.scanner.vt.VirusTotal;
 import io.github.muntashirakon.AppManager.scanner.vt.VtFileReport;
-import io.github.muntashirakon.AppManager.scanner.vt.VtFileScanMeta;
 import io.github.muntashirakon.AppManager.settings.Prefs;
 import io.github.muntashirakon.AppManager.types.UserPackagePair;
 import io.github.muntashirakon.AppManager.utils.DigestUtils;
@@ -75,7 +75,7 @@ public class RunningAppsViewModel extends AndroidViewModel {
     }
 
     // Null = Uploading, NonNull = Queued
-    private final MutableLiveData<Pair<ProcessItem, VtFileScanMeta>> mVtFileScanMeta = new MutableLiveData<>();
+    private final MutableLiveData<Pair<ProcessItem, String>> mVtFileUpload = new MutableLiveData<>();
     // Null = Failed, NonNull = Result generated
     private final MutableLiveData<Pair<ProcessItem, VtFileReport>> mVtFileReport = new MutableLiveData<>();
 
@@ -83,8 +83,8 @@ public class RunningAppsViewModel extends AndroidViewModel {
         return mVtFileReport;
     }
 
-    public MutableLiveData<Pair<ProcessItem, VtFileScanMeta>> getVtFileScanMeta() {
-        return mVtFileScanMeta;
+    public MutableLiveData<Pair<ProcessItem, String>> getVtFileUpload() {
+        return mVtFileUpload;
     }
 
     @AnyThread
@@ -105,12 +105,12 @@ public class RunningAppsViewModel extends AndroidViewModel {
             }
             String sha256 = DigestUtils.getHexDigest(DigestUtils.SHA_256, proxyFile);
             try {
-                mVt.fetchReportsOrScan(proxyFile, sha256, new VirusTotal.FullScanResponseInterface() {
+                mVt.fetchFileReportOrScan(proxyFile, sha256, new VirusTotal.FullScanResponseInterface() {
                     @Override
-                    public boolean scanFile() {
+                    public boolean uploadFile() {
                         mUploadingEnabled = false;
                         mUploadingEnabledWatcher = new CountDownLatch(1);
-                        mVtFileScanMeta.postValue(new Pair<>(processItem, null));
+                        mVtFileUpload.postValue(new Pair<>(processItem, null));
                         try {
                             mUploadingEnabledWatcher.await(2, TimeUnit.MINUTES);
                         } catch (InterruptedException ignore) {
@@ -119,12 +119,12 @@ public class RunningAppsViewModel extends AndroidViewModel {
                     }
 
                     @Override
-                    public void onScanningInitiated() {
+                    public void onUploadInitiated() {
                     }
 
                     @Override
-                    public void onScanCompleted(@NonNull VtFileScanMeta meta) {
-                        mVtFileScanMeta.postValue(new Pair<>(processItem, meta));
+                    public void onUploadCompleted(@NonNull String permalink) {
+                        mVtFileUpload.postValue(new Pair<>(processItem, permalink));
                     }
 
                     @Override
@@ -226,7 +226,7 @@ public class RunningAppsViewModel extends AndroidViewModel {
             try {
                 PackageManagerCompat.forceStopPackage(info.packageName, UserHandleHidden.getUserId(info.uid));
                 mForceStopAppResult.postValue(new Pair<>(info, true));
-            } catch (RemoteException e) {
+            } catch (SecurityException e) {
                 e.printStackTrace();
                 mForceStopAppResult.postValue(new Pair<>(info, false));
             }
@@ -394,7 +394,18 @@ public class RunningAppsViewModel extends AndroidViewModel {
         mProcessLiveData.postValue(filteredProcessList);
     }
 
-    private final Set<ProcessItem> mSelectedItems = new HashSet<>();
+    private final Set<ProcessItem> mSelectedItems = new LinkedHashSet<>();
+
+    @Nullable
+    public ProcessItem getLastSelectedItem() {
+        // Last selected package is the same as the last added package.
+        Iterator<ProcessItem> it = mSelectedItems.iterator();
+        ProcessItem lastItem = null;
+        while (it.hasNext()) {
+            lastItem = it.next();
+        }
+        return lastItem;
+    }
 
     public int getSelectionCount() {
         return mSelectedItems.size();

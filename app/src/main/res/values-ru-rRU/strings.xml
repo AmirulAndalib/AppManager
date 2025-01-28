@@ -388,7 +388,6 @@
     <string name="features">Функции</string>
     <string name="whats_new">Что нового</string>
     <string name="blocking_rules">Правила блокировки</string>
-    <string name="cache">Кеш</string>
     <string name="external_data">Внешние данные</string>
     <string name="data">Данные</string>
     <string name="backup">Бекап</string>
@@ -669,7 +668,6 @@
     <string name="pref_encryption_msg">Шифрование резервных копий.</string>
     <string name="encryption">Шифрование</string>
     <string name="select_user">Выбрать пользователя</string>
-    <string name="pref_show_users_in_installer">Показать пользователей в установщике</string>
     <string name="failed_to_duplicate_profile">Не удалось продублировать профиль</string>
     <string name="send_selected">Отправить выбранный</string>
     <string name="install_location">Место установки</string>
@@ -777,7 +775,7 @@
     <string name="backup_skip_signature_checks_description">Восстановление резервных копий, которые либо не прошли проверку контрольных сумм, либо имеют подписи, отличные от предыдущих резервных копий APK.</string>
     <string name="backup_multiple_description">Создание отдельной резервной копии, с <i>именем</i> , которое отличается от основного наименования бекапа.</string>
     <string name="backup_rules_description">Резервное копирование правил, настроенных в App Manager.<font fgcolor="#ff0000">В зависимости от разрешений не все правила можно повторно применить во время восстановления.</font> </string>
-    <string name="backup_extras_description">Резервное копирование разрешений приложения, экономия батареи, параметры использования данных, статус MagiskHide, SSAID и т.д.</string>
+    <string name="backup_extras_description">Резервное копирование разрешений приложений, параметров экономии заряда батареи и использования данных, состояние MagiskHide, SSAID и т.д. <font fgcolor="#ff0000">В зависимости от разрешений не все extras можно восстановить.</font> </string>
     <string name="backup_extras">Дополнительно</string>
     <string name="backup_cache_description">Резервное копирование папок <b>cache</b>, <b>no_cache</b> и <b>no_backup</b>.</string>
     <string name="backup_obb_media_description">Резервное копирование OBB и папок с медиафайлами.</string>
@@ -1054,7 +1052,7 @@
     <string name="unknown_net_policy">Неизвестная сетевая политика (%1$s - %2$X)</string>
     <string name="failed_to_prevent_background_run">Не удалось предотвратить работу в фоне для приложения %1$s</string>
     <string name="community">Сообщество</string>
-    <string name="community_links"><a href="https://t.me/AppManagerChannel">Telegram-канал</a> • <a href="https://twitter.com/AppManagerNews">Twitter</a></string>
+    <string name="community_links"><a href="https://matrix.to/#/#appmanager:matrix.org">Matrix</a> • <a href="https://t.me/AppManagerChannel">Telegram</a> • <a href="https://twitter.com/AppManagerNews">Twitter</a></string>
     <plurals name="alert_failed_to_import_backups">
         <item quantity="one">Не удалось импортировать %1$d резервную копию</item>
         <item quantity="few">Не удалось импортировать %1$d резервных копии</item>
@@ -1081,9 +1079,7 @@
     <string name="notice">Уведомление</string>
     <string name="keystore_password_info">Ниже приведен пароль хранилища ключей App Manager. Пожалуйста, храните его в надежном месте, если вы собираетесь делать резервное копирование/восстановление хранилища ключей App Manager. <b>Это сообщение не будет отображаться снова.</b></string>
     <string name="paired_successfully">Подключено.</string>
-    <string name="port_number_pairing_code_empty">Номер порта или код подключения пуст.</string>
     <string name="adb_pair">Подключить</string>
-    <string name="adb_wifi_paring_code">Код подключения Wi-Fi</string>
     <string name="invalid_password">Неправильный пароль, попробуйте ещё раз.</string>
     <string name="keystore_pass_cannot_be_empty">Пароль хранилища ключей не может быть пустым.</string>
     <string name="background">В фоне</string>
@@ -1489,4 +1485,43 @@
     <string name="scan_report_from_pithus">Отчет Pithus</string>
     <string name="action_checking">Проверка…</string>
     <string name="report_not_available">Не доступно</string>
+    <string name="profile_modified_are_you_sure">Профиль был изменен. Отменить все изменения и выйти\?</string>
+    <string name="apply_profile">Применить профиль “%1$s”</string>
+    <string name="copy_profile_id">Скопировать идентификатор профиля</string>
+    <string name="profile_id">ID профиля</string>
+    <string name="choose_a_profile_state">Выберите состояние профиля</string>
+    <string name="netpolicy_reject_metered_data">Отклонять данные в сетях с лимитным тарифным планом</string>
+    <string name="netpolicy_allow_metered_background_data">Разрешить фоновую передачу данных в сетях с лимитным трафиком, даже если включена функция экономии трафика</string>
+    <string name="pref_toggle_internet_msg">Активируйте интернет возможности в App Manager</string>
+    <string name="launch_activity_dialog_title">Запуск Активити: Требуется Действие</string>
+    <string name="pref_use_log_viewer">Использовать средство просмотра логов</string>
+    <string name="netpolicy_reject_metered_background_data">Отклонить фоновые данные в сетях с лимитным трафиком</string>
+    <string name="mode_of_op_custom_command">Если вы не можете использовать ни один из режимов, вы можете запустить следующую команду в любой поддерживаемой оболочке, чтобы запустить диспетчер приложений в привилегированном режиме:</string>
+    <string name="pref_use_vt">Используйте VirusTotal</string>
+    <string name="pref_use_vt_no_internet">Для работы VirusTotal требуется Интернет, который не включен. Сначала включите <a href="app-manager://settings/privacy_prefs/toggle_internet">\"Использовать Интернет\"</a>.</string>
+    <string name="status_remote_server_inactive">Удаленный сервер неактивен</string>
+    <string name="status_remote_services_active">Удаленные сервисы активны</string>
+    <string name="status_remote_services_inactive">Удаленные сервисы неактивны</string>
+    <string name="status_connecting_via_mode">Подключение через %s</string>
+    <string name="adb_pairing_pairing_code">Код сопряжения</string>
+    <string name="status_connected_via_mode">Подключено через %s</string>
+    <string name="status_not_connected_via_mode">Не удалось подключиться через %s</string>
+    <string name="adb_pairing_instruction">Перейдите к параметрам разработчика, чтобы включить беспроводную отладку и сгенерировать код сопряжения.</string>
+    <string name="adb_pairing_found_pairing_service_with_port">Найден сервис с портом %d</string>
+    <string name="adb_pairing_stop_searching">Стоп</string>
+    <string name="adb_pairing_searching_for_port">Идет поиск…</string>
+    <string name="adb_pairing_input_pairing_code">Код сопряжения</string>
+    <string name="select_filter">Выберите фильтр</string>
+    <string name="size_in_bytes">Размер (байты)</string>
+    <string name="invalid_regex">Недопустимое регулярное выражение!</string>
+    <string name="value_cannot_be_empty">Значение не может быть пустым!</string>
+    <string name="date">Дата</string>
+    <string name="pref_installer">Используйте установщик</string>
+    <string name="pref_cat_general">Главное</string>
+    <string name="status_remote_server_active">Удаленный сервер активен</string>
+    <string name="finder_title">Поисковик</string>
+    <string name="status_connecting">Подключение…</string>
+    <string name="adb_pairing_pairing_in_progress">Сопряжение…</string>
+    <string name="adb_pairing_retry_pairing">Повтор</string>
+    <string name="mode_of_op_custom_command_title">Пользовательская команда</string>
 </resources>

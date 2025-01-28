@@ -20,6 +20,7 @@ import java.util.List;
 
 import io.github.muntashirakon.AppManager.R;
 import io.github.muntashirakon.AppManager.logcat.struct.LogLine;
+import io.github.muntashirakon.AppManager.logcat.struct.SearchCriteria;
 import io.github.muntashirakon.AppManager.utils.ContextUtils;
 import io.github.muntashirakon.AppManager.utils.ThreadUtils;
 import io.github.muntashirakon.AppManager.utils.Utils;
@@ -68,23 +69,22 @@ public class SavedLogViewerFragment extends AbsLogViewerFragment implements LogV
     }
 
     @Override
-    public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
-        inflater.inflate(R.menu.fragment_saved_log_viewer_actions, menu);
+    public void onCreateMenu(@NonNull Menu menu, @NonNull MenuInflater menuInflater) {
+        menuInflater.inflate(R.menu.fragment_saved_log_viewer_actions, menu);
     }
 
     @Override
-    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-        return super.onOptionsItemSelected(item);
+    public boolean onMenuItemSelected(@NonNull MenuItem item) {
+        return super.onMenuItemSelected(item);
     }
 
     @Override
     public void onNewLogsAvailable(@NonNull List<LogLine> logLines) {
         mActivity.hideProgressBar();
         for (LogLine logLine : logLines) {
-            mLogListAdapter.addWithFilter(logLine, "", false);
+            mLogListAdapter.addWithFilter(logLine, new SearchCriteria(null), true);
             mActivity.addToAutocompleteSuggestions(logLine);
         }
-        mLogListAdapter.notifyDataSetChanged();
 
         mRecyclerView.scrollToPosition(mLogListAdapter.getItemCount() - 1);
     }

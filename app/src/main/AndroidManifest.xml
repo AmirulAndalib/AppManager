@@ -38,10 +38,13 @@
     <uses-permission
         android:name="android.permission.DUMP"
         tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.ENFORCE_UPDATE_OWNERSHIP" />
     <uses-permission
         android:name="android.permission.FORCE_STOP_PACKAGES"
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission
         android:name="android.permission.GET_PACKAGE_SIZE"
         android:maxSdkVersion="25" />
@@ -55,6 +58,9 @@
     <uses-permission android:name="android.permission.GET_TASKS" />
     <uses-permission
         android:name="android.permission.GRANT_RUNTIME_PERMISSIONS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission
+        android:name="android.permission.INJECT_EVENTS"
         tools:ignore="ProtectedPermissions" />
     <uses-permission
         android:name="com.android.permission.INSTALL_EXISTING_PACKAGES"
@@ -95,6 +101,9 @@
         tools:ignore="ProtectedPermissions" />
     <uses-permission
         android:name="android.permission.MANAGE_USERS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission
+        android:name="android.permission.MANAGE_SENSORS"
         tools:ignore="ProtectedPermissions" />
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
@@ -142,9 +151,9 @@
     <application
         android:name=".AppManager"
         android:allowBackup="true"
+        android:banner="@mipmap/ic_banner"
         android:dataExtractionRules="@xml/backup_rules"
         android:fullBackupContent="@xml/full_backup_rules"
-        android:banner="@mipmap/ic_banner"
         android:hasFragileUserData="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -155,6 +164,10 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         tools:ignore="UnusedAttribute">
+        <activity
+            android:name=".filters.FinderActivity"
+            android:exported="false"
+            android:label="@string/finder_title" />
         <activity
             android:name=".oneclickops.OneClickOpsActivity"
             android:exported="false"
@@ -184,27 +197,27 @@
         </activity>
         <activity
             android:name=".sharedpref.SharedPrefsActivity"
-            android:taskAffinity=""
-            android:exported="false" />
+            android:exported="false"
+            android:taskAffinity="" />
         <activity
             android:name=".usage.AppUsageActivity"
             android:exported="true" />
         <activity
             android:name=".editor.CodeEditorActivity"
-            android:label="@string/title_code_editor"
             android:configChanges="keyboard|keyboardHidden|locale|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
+            android:exported="false"
+            android:label="@string/title_code_editor"
             android:taskAffinity=".editor.CodeEditorActivity"
-            android:windowSoftInputMode="adjustResize"
-            android:exported="false" />
+            android:windowSoftInputMode="adjustResize" />
 
         <activity-alias
             android:name=".editor.EditorActivity"
-            android:targetActivity=".editor.CodeEditorActivity"
-            android:label="@string/title_code_editor"
             android:configChanges="orientation|keyboardHidden|screenSize|uiMode"
+            android:exported="true"
+            android:label="@string/title_code_editor"
+            android:targetActivity=".editor.CodeEditorActivity"
             android:taskAffinity=".editor.CodeEditorActivity"
-            android:windowSoftInputMode="adjustResize"
-            android:exported="true">
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
 
@@ -415,26 +428,38 @@
                 <category android:name="android.intent.category.BROWSABLE" />
 
                 <data
-                    android:scheme="market"
-                    android:host="search" />
+                    android:host="search"
+                    android:scheme="market" />
             </intent-filter>
         </activity>
         <activity
             android:name=".runner.TermActivity"
-            android:label="@string/title_terminal_emulator"
             android:exported="false"
+            android:label="@string/title_terminal_emulator"
             android:taskAffinity=""
             android:windowSoftInputMode="stateUnchanged" />
         <activity
             android:name=".accessibility.activity.LeadingActivityTrackerActivity"
-            android:label="@string/title_ui_tracker"
-            android:exported="false"
             android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/title_ui_tracker"
             android:theme="@style/AppTheme.TransparentBackground" />
         <activity
             android:name=".misc.LabsActivity"
             android:exported="true"
             android:label="@string/title_labs_activity" />
+
+        <activity-alias
+            android:name=".apk.installer.AppInfoActivity"
+            android:exported="false"
+            android:label="@string/app_info"
+            android:targetActivity=".details.AppDetailsActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.SHOW_APP_INFO" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
 
         <activity-alias
             android:name=".details.AppInfoActivity"
@@ -501,8 +526,8 @@
 
         <activity
             android:name=".debloat.DebloaterActivity"
-            android:label="@string/debloater_title"
-            android:exported="false" />
+            android:exported="false"
+            android:label="@string/debloater_title" />
         <activity
             android:name=".details.AppDetailsActivity"
             android:exported="false" />
@@ -636,6 +661,11 @@
             android:launchMode="singleInstance"
             android:taskAffinity="" />
         <activity
+            android:name=".history.ops.OpHistoryActivity"
+            android:exported="true"
+            android:icon="@drawable/ic_history"
+            android:label="@string/op_history" />
+        <activity
             android:name=".intercept.ActivityInterceptor"
             android:enabled="true"
             android:exported="true"
@@ -645,13 +675,22 @@
 
             <!-- matching any given mime type -->
             <intent-filter tools:ignore="AppLinkUrlError">
+                <action android:name="android.intent.action.APPLICATION_PREFERENCES" />
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
                 <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.intent.action.EDIT" />
                 <action android:name="android.intent.action.PICK" />
                 <action android:name="android.intent.action.GET_CONTENT" />
+                <action android:name="android.intent.action.CREATE_DOCUMENT" />
+                <action android:name="android.intent.action.OPEN_DOCUMENT" />
+                <action android:name="android.intent.action.OPEN_DOCUMENT_TREE" />
                 <action android:name="android.intent.action.INSERT" />
                 <action android:name="android.intent.action.INSERT_OR_EDIT" />
+                <action android:name="android.intent.action.CALL_BUTTON" />
+                <action android:name="android.intent.action.DIAL" />
                 <!-- Used by camera to view photo taken -->
+                <action android:name="android.provider.action.REVIEW" />
+                <action android:name="android.provider.action.REVIEW_SECURE" />
                 <action android:name="com.android.camera.action.REVIEW" />
                 <action android:name="com.android.camera.action.SPLIT_SCREEN_REVIEW" />
 
@@ -663,13 +702,22 @@
             </intent-filter>
             <!-- same as above matching when no mime type is available (null) -->
             <intent-filter tools:ignore="AppLinkUrlError">
+                <action android:name="android.intent.action.APPLICATION_PREFERENCES" />
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
                 <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.intent.action.EDIT" />
                 <action android:name="android.intent.action.PICK" />
                 <action android:name="android.intent.action.GET_CONTENT" />
+                <action android:name="android.intent.action.CREATE_DOCUMENT" />
+                <action android:name="android.intent.action.OPEN_DOCUMENT" />
+                <action android:name="android.intent.action.OPEN_DOCUMENT_TREE" />
                 <action android:name="android.intent.action.INSERT" />
                 <action android:name="android.intent.action.INSERT_OR_EDIT" />
+                <action android:name="android.intent.action.CALL_BUTTON" />
+                <action android:name="android.intent.action.DIAL" />
                 <!-- Used by camera to view photo taken -->
+                <action android:name="android.provider.action.REVIEW" />
+                <action android:name="android.provider.action.REVIEW_SECURE" />
                 <action android:name="com.android.camera.action.REVIEW" />
                 <action android:name="com.android.camera.action.SPLIT_SCREEN_REVIEW" />
 
@@ -679,13 +727,22 @@
             </intent-filter>
             <!-- scheme-intents without mime (mime==null) -->
             <intent-filter>
+                <action android:name="android.intent.action.APPLICATION_PREFERENCES" />
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
                 <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.intent.action.EDIT" />
                 <action android:name="android.intent.action.PICK" />
                 <action android:name="android.intent.action.GET_CONTENT" />
+                <action android:name="android.intent.action.CREATE_DOCUMENT" />
+                <action android:name="android.intent.action.OPEN_DOCUMENT" />
+                <action android:name="android.intent.action.OPEN_DOCUMENT_TREE" />
                 <action android:name="android.intent.action.INSERT" />
                 <action android:name="android.intent.action.INSERT_OR_EDIT" />
+                <action android:name="android.intent.action.CALL_BUTTON" />
+                <action android:name="android.intent.action.DIAL" />
                 <!-- Used by camera to view photo taken -->
+                <action android:name="android.provider.action.REVIEW" />
+                <action android:name="android.provider.action.REVIEW_SECURE" />
                 <action android:name="com.android.camera.action.REVIEW" />
                 <action android:name="com.android.camera.action.SPLIT_SCREEN_REVIEW" />
 
@@ -723,16 +780,30 @@
                 <data android:scheme="market" />
                 <data android:scheme="store" />
                 <data android:scheme="android" />
+
+                <!-- Intercept WhatsApp links -->
+                <data android:scheme="whatsapp" />
+                <data android:scheme="whatsapp-sheet" />
+                <data android:scheme="whatsapp-consumer" />
             </intent-filter>
             <!-- same scheme-intents but with mime (mime!=null) -->
             <intent-filter>
+                <action android:name="android.intent.action.APPLICATION_PREFERENCES" />
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
                 <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.intent.action.EDIT" />
                 <action android:name="android.intent.action.PICK" />
                 <action android:name="android.intent.action.GET_CONTENT" />
+                <action android:name="android.intent.action.CREATE_DOCUMENT" />
+                <action android:name="android.intent.action.OPEN_DOCUMENT" />
+                <action android:name="android.intent.action.OPEN_DOCUMENT_TREE" />
                 <action android:name="android.intent.action.INSERT" />
                 <action android:name="android.intent.action.INSERT_OR_EDIT" />
+                <action android:name="android.intent.action.CALL_BUTTON" />
+                <action android:name="android.intent.action.DIAL" />
                 <!-- Used by camera to view photo taken -->
+                <action android:name="android.provider.action.REVIEW" />
+                <action android:name="android.provider.action.REVIEW_SECURE" />
                 <action android:name="com.android.camera.action.REVIEW" />
                 <action android:name="com.android.camera.action.SPLIT_SCREEN_REVIEW" />
 
@@ -775,6 +846,9 @@
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.PICK" />
+                <!-- Intercept wallpaper -->
+                <action android:name="android.intent.action.ATTACH_DATA" />
+                <action android:name="android.intent.action.SET_WALLPAPER" />
 
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
@@ -811,9 +885,23 @@
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEARCH" />
+                <action android:name="android.intent.action.MEDIA_SEARCH" />
+                <action android:name="android.intent.action.WEB_SEARCH" />
+                <action android:name="android.speech.action.VOICE_SEARCH_HANDS_FREE" />
+                <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
+                <action android:name="android.media.action.TEXT_OPEN_FROM_SEARCH" />
+                <action android:name="android.media.action.VIDEO_PLAY_FROM_SEARCH" />
             </intent-filter>
             <intent-filter>
+                <action android:name="android.intent.action.SEARCH" />
+                <action android:name="android.intent.action.MEDIA_SEARCH" />
                 <action android:name="android.intent.action.WEB_SEARCH" />
+                <action android:name="android.speech.action.VOICE_SEARCH_HANDS_FREE" />
+                <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
+                <action android:name="android.media.action.TEXT_OPEN_FROM_SEARCH" />
+                <action android:name="android.media.action.VIDEO_PLAY_FROM_SEARCH" />
+
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.ASSIST" />
@@ -844,6 +932,17 @@
                     android:path="/"
                     android:scheme="zxing" />
             </intent-filter>
+            <!-- Intercept Samsung file manager -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:host="*" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:mimeType="*/*" />
+                <data android:pathPattern="/external/file/.*" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="com.android.camera.action.CROP" />
 
@@ -859,10 +958,14 @@
                 <action android:name="android.intent.action.INSTALL_PACKAGE" />
                 <action android:name="android.intent.action.UNINSTALL_PACKAGE" />
 
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
                 <data android:scheme="content" />
                 <data android:scheme="file" />
                 <data android:scheme="package" />
-                <data android:mimeType="application/vnd.android.package-archive" />
+                <data android:host="*" />
+                <data android:mimeType="application/*" />
             </intent-filter>
             <!-- Camera -->
             <intent-filter tools:ignore="AppLinkUrlError">
@@ -876,6 +979,13 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <category android:name="android.intent.category.VOICE" />
+            </intent-filter>
+            <!-- Music player -->
+            <intent-filter>
+                <action android:name="android.intent.action.MUSIC_PLAYER" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.APP_MUSIC" />
             </intent-filter>
         </activity>
         <activity
@@ -892,22 +1002,23 @@
             android:exported="true" />
         <activity
             android:name=".details.ActivityLauncherShortcutActivity"
-            android:exported="false" />
-        <activity
-            android:name=".apk.behavior.FreezeUnfreezeActivity"
-            android:taskAffinity=".apk.behavior.FreezeUnfreezeActivity"
-            android:launchMode="singleInstance"
-            android:noHistory="true"
             android:excludeFromRecents="true"
             android:exported="false"
+            android:taskAffinity=""
+            android:theme="@style/AppTheme.TransparentBackground" />
+        <activity
+            android:name=".apk.behavior.FreezeUnfreezeActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:taskAffinity=".apk.behavior.FreezeUnfreezeActivity"
             android:theme="@style/AppTheme.TransparentBackground" />
         <activity
             android:name=".profiles.ProfileApplierActivity"
-            android:taskAffinity=".profiles.ProfileApplierActivity"
-            android:launchMode="singleInstance"
-            android:noHistory="true"
             android:excludeFromRecents="true"
             android:exported="false"
+            android:launchMode="singleInstance"
+            android:taskAffinity=".profiles.ProfileApplierActivity"
             android:theme="@style/AppTheme.TransparentBackground" />
         <activity
             android:name=".main.SplashActivity"
@@ -972,8 +1083,8 @@
         <activity
             android:name=".fm.FmActivity"
             android:exported="true"
-            android:label="@string/files"
             android:icon="@mipmap/ic_launcher_fm"
+            android:label="@string/files"
             android:roundIcon="@mipmap/ic_launcher_fm_round"
             android:taskAffinity=".fm.FmActivity">
             <intent-filter android:label="@string/browse_files">
@@ -1000,12 +1111,12 @@
 
         <activity-alias
             android:name=".fm.FilesActivity"
-            android:targetActivity=".fm.FmActivity"
-            android:label="@string/files"
-            android:icon="@mipmap/ic_launcher_fm"
-            android:roundIcon="@mipmap/ic_launcher_fm_round"
             android:enabled="false"
             android:exported="true"
+            android:icon="@mipmap/ic_launcher_fm"
+            android:label="@string/files"
+            android:roundIcon="@mipmap/ic_launcher_fm_round"
+            android:targetActivity=".fm.FmActivity"
             android:taskAffinity=".fm.FmActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -1017,16 +1128,17 @@
 
         <activity
             android:name=".fm.OpenWithActivity"
-            android:label="@string/file_open_with"
             android:exported="false"
+            android:label="@string/file_open_with"
             android:theme="@style/AppTheme.TransparentBackground" />
         <activity
             android:name=".viewer.audio.AudioPlayerActivity"
-            android:exported="false"
-            android:label="@string/title_audio_player"
             android:excludeFromRecents="true"
-            android:theme="@style/AppTheme.TransparentBackground"
-            android:taskAffinity=".misc.music.AudioPlayerActivity">
+            android:exported="true"
+            android:label="@string/title_audio_player"
+            android:process=":audio_player"
+            android:taskAffinity=".misc.music.AudioPlayerActivity"
+            android:theme="@style/AppTheme.TransparentBackground">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
 
@@ -1059,31 +1171,36 @@
         </activity>
         <activity
             android:name=".DummyActivity"
-            android:theme="@android:style/Theme.NoDisplay"
-            android:enabled="true"
             android:allowTaskReparenting="true"
-            android:noHistory="true"
-            android:excludeFromRecents="true"
             android:alwaysRetainTaskState="false"
-            android:stateNotNeeded="true"
             android:clearTaskOnLaunch="true"
-            android:finishOnTaskLaunch="true" />
+            android:enabled="true"
+            android:excludeFromRecents="true"
+            android:finishOnTaskLaunch="true"
+            android:noHistory="true"
+            android:stateNotNeeded="true"
+            android:theme="@android:style/Theme.NoDisplay" />
 
         <service
             android:name=".apk.installer.PackageInstallerService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="dataSync|specialUse" />
         <service
             android:name=".batchops.BatchOpsService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="dataSync|specialUse" />
         <service
             android:name=".profiles.ProfileApplierService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="dataSync|specialUse" />
         <service
             android:name=".logcat.LogcatRecordingService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="dataSync|specialUse" />
         <service
             android:name=".apk.behavior.FreezeUnfreezeService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="dataSync|specialUse" />
         <service
             android:name=".accessibility.NoRootAccessibilityService"
             android:exported="false"
@@ -1101,23 +1218,51 @@
             android:exported="false" />
         <service
             android:name=".session.SessionMonitoringService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="dataSync|specialUse" />
+        <service
+            android:name=".adb.AdbPairingService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync|specialUse"
+            tools:targetApi="r" />
 
         <receiver
             android:name=".servermanager.ServerStatusChangeReceiver"
             android:exported="true"
-            tools:ignore="ExportedReceiver" />
+            android:permission="android.permission.UPDATE_APP_OPS_STATS" />
         <receiver
             android:name=".usage.ScreenTimeAppWidget"
             android:exported="true"
             android:label="@string/screen_time">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE_OPTIONS" />
+                <action android:name="android.appwidget.action.APPWIDGET_DELETED" />
+                <action android:name="android.appwidget.action.APPWIDGET_DISABLED" />
+                <action android:name="android.appwidget.action.APPWIDGET_ENABLED" />
+                <action android:name="android.appwidget.action.APPWIDGET_RESTORED" />
             </intent-filter>
 
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/app_widget_info_screen_time" />
+        </receiver>
+        <receiver
+            android:name=".usage.DataUsageAppWidget"
+            android:exported="true"
+            android:label="@string/data_usage_msg">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE_OPTIONS" />
+                <action android:name="android.appwidget.action.APPWIDGET_DELETED" />
+                <action android:name="android.appwidget.action.APPWIDGET_DISABLED" />
+                <action android:name="android.appwidget.action.APPWIDGET_ENABLED" />
+                <action android:name="android.appwidget.action.APPWIDGET_RESTORED" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/app_widget_info_data_usage" />
         </receiver>
         <receiver
             android:name=".oneclickops.ClearCacheAppWidget"
@@ -1133,8 +1278,8 @@
         </receiver>
         <receiver
             android:name=".logcat.RecordingWidgetProvider"
-            android:label="@string/record_log"
-            android:exported="true">
+            android:exported="true"
+            android:label="@string/record_log">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
 

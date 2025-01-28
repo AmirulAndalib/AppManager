@@ -15,12 +15,14 @@ import static io.github.muntashirakon.AppManager.apk.installer.PackageInstallerC
 import static io.github.muntashirakon.AppManager.apk.installer.PackageInstallerCompat.STATUS_FAILURE_SESSION_WRITE;
 import static io.github.muntashirakon.AppManager.apk.installer.PackageInstallerCompat.STATUS_FAILURE_STORAGE;
 import static io.github.muntashirakon.AppManager.apk.installer.PackageInstallerCompat.STATUS_SUCCESS;
+import static io.github.muntashirakon.AppManager.history.ops.OpHistoryManager.HISTORY_TYPE_INSTALLER;
 
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.PowerManager;
+import android.os.UserHandleHidden;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -38,9 +40,11 @@ import io.github.muntashirakon.AppManager.R;
 import io.github.muntashirakon.AppManager.apk.ApkFile;
 import io.github.muntashirakon.AppManager.apk.ApkSource;
 import io.github.muntashirakon.AppManager.apk.CachedApkSource;
-import io.github.muntashirakon.AppManager.apk.behavior.DexOptimizer;
+import io.github.muntashirakon.AppManager.apk.dexopt.DexOptimizer;
 import io.github.muntashirakon.AppManager.compat.PackageManagerCompat;
+import io.github.muntashirakon.AppManager.history.ops.OpHistoryManager;
 import io.github.muntashirakon.AppManager.intercept.IntentCompat;
+import io.github.muntashirakon.AppManager.logs.Log;
 import io.github.muntashirakon.AppManager.main.MainActivity;
 import io.github.muntashirakon.AppManager.progress.NotificationProgressHandler;
 import io.github.muntashirakon.AppManager.progress.NotificationProgressHandler.NotificationInfo;
@@ -55,6 +59,8 @@ import io.github.muntashirakon.AppManager.utils.PackageUtils;
 import io.github.muntashirakon.AppManager.utils.ThreadUtils;
 
 public class PackageInstallerService extends ForegroundService {
+    public static final String TAG = PackageInstallerService.class.getSimpleName();
+
     public static final String EXTRA_QUEUE_ITEM = "queue_item";
     public static final String CHANNEL_ID = BuildConfig.APPLICATION_ID + ".channel.INSTALL";
 
@@ -65,13 +71,11 @@ public class PackageInstallerService extends ForegroundService {
     }
 
     public PackageInstallerService() {
-        super("PackageInstallerService");
+        super(TAG);
     }
 
     @Nullable
     private OnInstallFinished mOnInstallFinished;
-    private int mSessionId;
-    private String mPackageName;
     private QueuedProgressHandler mProgressHandler;
     private NotificationInfo mNotificationInfo;
     private PowerManager.WakeLock mWakeLock;
@@ -114,7 +118,7 @@ public class PackageInstallerService extends ForegroundService {
         }
         InstallerOptions options = apkQueueItem.getInstallerOptions() != null
                 ? apkQueueItem.getInstallerOptions()
-                : new InstallerOptions();
+                : InstallerOptions.getDefault();
         List<String> selectedSplitIds = Objects.requireNonNull(apkQueueItem.getSelectedSplits());
         // Install package
         PackageInstallerCompat installer = PackageInstallerCompat.getNewInstance();
@@ -122,8 +126,6 @@ public class PackageInstallerService extends ForegroundService {
         installer.setOnInstallListener(new PackageInstallerCompat.OnInstallListener() {
             @Override
             public void onStartInstall(int sessionId, String packageName) {
-                mSessionId = sessionId;
-                mPackageName = packageName;
             }
 
             // MIUI-begin: MIUI 12.5+ workaround
@@ -135,10 +137,22 @@ public class PackageInstallerService extends ForegroundService {
             }
             // MIUI-end
 
+            // HyperOS-begin: HyperOS 2.0+ workaround
+            @Override
+            public void onSecondAttemptInHyperOsWithoutInstaller(@Nullable ApkFile apkFile) {
+                if (apkFile != null) {
+                    options.setInstallerName("com.android.shell");
+                    installer.install(apkFile, selectedSplitIds, options, mProgressHandler);
+                }
+            }
+            // HyerOS-end
+
             @Override
             public void onFinishedInstall(int sessionId, String packageName, int result,
                                           @Nullable String blockingPackage, @Nullable String statusMessage) {
-                if (result == STATUS_SUCCESS) {
+                boolean success = result == STATUS_SUCCESS;
+                OpHistoryManager.addHistoryItem(HISTORY_TYPE_INSTALLER, apkQueueItem, success);
+                if (success) {
                     // Block trackers if requested
                     if (options.isBlockTrackers()) {
                         ComponentUtils.blockTrackingComponents(new UserPackagePair(packageName, options.getUserId()));
@@ -149,13 +163,7 @@ public class PackageInstallerService extends ForegroundService {
                         new DexOptimizer(PackageManagerCompat.getPackageManager(), packageName).forceDexOpt();
                     }
                 }
-                if (mOnInstallFinished != null) {
-                    ThreadUtils.postOnMainThread(() -> {
-                        if (mOnInstallFinished != null) {
-                            mOnInstallFinished.onFinished(packageName, result, blockingPackage, statusMessage);
-                        }
-                    });
-                } else sendNotification(result, apkQueueItem.getAppLabel(), blockingPackage, statusMessage);
+                finishInstallation(packageName, result, apkQueueItem.getAppLabel(), blockingPackage, statusMessage);
             }
         });
         // Two possibilities: 1. Install-existing, 2. ApkFile/Uri
@@ -169,25 +177,28 @@ public class PackageInstallerService extends ForegroundService {
             installer.installExisting(packageName, options.getUserId());
         } else {
             // ApkFile/Uri
-            ApkFile apkFile;
             ApkSource apkSource = apkQueueItem.getApkSource();
-            if (apkSource != null) {
-                // ApkFile set
-                try {
-                    apkFile = apkSource.resolve();
-                } catch (Throwable th) {
-                    // Could not get ApkFile for some reason, abort
-                    th.printStackTrace();
-                    return;
-                }
-            } else {
+            if (apkSource == null) {
                 // No apk file, abort
                 return;
             }
-            installer.install(apkFile, selectedSplitIds, options, mProgressHandler);
-            // Delete the cached file
-            if (apkSource instanceof CachedApkSource) {
-                ((CachedApkSource) apkSource).cleanup();
+            ApkFile apkFile;
+            try {
+                try {
+                    apkFile = apkSource.resolve();
+                } catch (Throwable th) {
+                    Log.w(TAG, "Could not get ApkFile", th);
+                    OpHistoryManager.addHistoryItem(HISTORY_TYPE_INSTALLER, apkQueueItem, false);
+                    String packageName = apkQueueItem.getPackageName();
+                    finishInstallation(packageName != null ? packageName : "Unknown Package", STATUS_FAILURE_INVALID, apkQueueItem.getAppLabel(), null, null);
+                    return;
+                }
+                installer.install(apkFile, selectedSplitIds, options, mProgressHandler);
+            } finally {
+                // Delete the cached file
+                if (apkSource instanceof CachedApkSource) {
+                    ((CachedApkSource) apkSource).cleanup();
+                }
             }
         }
     }
@@ -240,19 +251,26 @@ public class PackageInstallerService extends ForegroundService {
         this.mOnInstallFinished = onInstallFinished;
     }
 
-    public int getCurrentSessionId() {
-        return mSessionId;
+    private void finishInstallation(@NonNull String packageName, int status,
+                                    @Nullable String appLabel, @Nullable String blockingPackage,
+                                    @Nullable String statusMessage) {
+        if (mOnInstallFinished != null) {
+            ThreadUtils.postOnMainThread(() -> {
+                if (mOnInstallFinished != null) {
+                    mOnInstallFinished.onFinished(packageName, status, blockingPackage, statusMessage);
+                }
+            });
+        } else {
+            sendNotification(packageName, status, appLabel, blockingPackage, statusMessage);
+        }
     }
 
-    public String getCurrentPackageName() {
-        return mPackageName;
-    }
-
-    private void sendNotification(@PackageInstallerCompat.Status int status,
+    private void sendNotification(@NonNull String packageName,
+                                  @PackageInstallerCompat.Status int status,
                                   @Nullable String appLabel,
                                   @Nullable String blockingPackage,
                                   @Nullable String statusMessage) {
-        Intent intent = getPackageManager().getLaunchIntentForPackage(mPackageName);
+        Intent intent = PackageManagerCompat.getLaunchIntentForPackage(packageName, UserHandleHidden.myUserId());
         PendingIntent defaultAction = intent != null ? PendingIntentCompat.getActivity(this, 0, intent,
                 PendingIntent.FLAG_ONE_SHOT, false) : null;
         String subject = getStringFromStatus(this, status, appLabel, blockingPackage);

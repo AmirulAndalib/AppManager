@@ -2,6 +2,7 @@
 
 package io.github.muntashirakon.AppManager.ipc;
 
+import android.os.Process;
 import android.os.RemoteException;
 
 import androidx.annotation.AnyThread;
@@ -15,10 +16,13 @@ import java.util.concurrent.TimeUnit;
 import io.github.muntashirakon.AppManager.BuildConfig;
 import io.github.muntashirakon.AppManager.IAMService;
 import io.github.muntashirakon.AppManager.misc.NoOps;
+import io.github.muntashirakon.AppManager.settings.Ops;
 import io.github.muntashirakon.AppManager.utils.ThreadUtils;
 import io.github.muntashirakon.io.FileSystemManager;
 
 public class LocalServices {
+    private static final Object sBindLock = new Object();
+
     @NonNull
     private static final ServiceConnectionWrapper sFileSystemServiceConnectionWrapper
             = new ServiceConnectionWrapper(BuildConfig.APPLICATION_ID, FileSystemService.class.getName());
@@ -32,14 +36,18 @@ public class LocalServices {
 
     @WorkerThread
     public static void bindServices() throws RemoteException {
-        unbindServicesIfRunning();
-        bindAmService();
-        bindFileSystemManager();
-        // Verify binding
-        if (!getAmService().asBinder().pingBinder()) {
-            throw new RemoteException("IAmService not running.");
+        synchronized (sBindLock) {
+            unbindServicesIfRunning();
+            bindAmService();
+            bindFileSystemManager();
+            // Verify binding
+            if (!getAmService().asBinder().pingBinder()) {
+                throw new RemoteException("IAmService not running.");
+            }
+            getFileSystemManager();
+            // Update UID
+            Ops.setWorkingUid(getAmService().getUid());
         }
-        getFileSystemManager();
     }
 
     public static boolean alive() {
@@ -50,7 +58,7 @@ public class LocalServices {
 
     @WorkerThread
     @NoOps(used = true)
-    public static void bindFileSystemManager() throws RemoteException {
+    private static void bindFileSystemManager() throws RemoteException {
         synchronized (sFileSystemServiceConnectionWrapper) {
             try {
                 sFileSystemServiceConnectionWrapper.bindService();
@@ -111,6 +119,7 @@ public class LocalServices {
         synchronized (sFileSystemServiceConnectionWrapper) {
             sFileSystemServiceConnectionWrapper.stopDaemon();
         }
+        Ops.setWorkingUid(Process.myUid());
     }
 
     @MainThread
@@ -121,6 +130,7 @@ public class LocalServices {
         synchronized (sFileSystemServiceConnectionWrapper) {
             sFileSystemServiceConnectionWrapper.unbindService();
         }
+        Ops.setWorkingUid(Process.myUid());
     }
 
     @WorkerThread
