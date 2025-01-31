@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextUtils;
 
+import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
@@ -26,20 +27,27 @@ public class KeyStoreActivity extends AppCompatActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         setTheme(Prefs.Appearance.getTransparentAppTheme());
+        EdgeToEdge.enable(this);
         super.onCreate(savedInstanceState);
         if (Boolean.TRUE.equals(BuildExpiryChecker.buildExpired())) {
             // Build has expired
-            BuildExpiryChecker.getBuildExpiredDialog(this).show();
+            BuildExpiryChecker.getBuildExpiredDialog(this, (dialog, which) -> processIntentAndFinish(getIntent())).show();
             return;
         }
-        if (getIntent() != null) {
-            onNewIntent(getIntent());
-        } else finish();
+        processIntentAndFinish(getIntent());
     }
 
     @Override
-    protected void onNewIntent(Intent intent) {
+    protected void onNewIntent(@NonNull Intent intent) {
         super.onNewIntent(intent);
+        processIntentAndFinish(intent);
+    }
+
+    private void processIntentAndFinish(@Nullable Intent intent) {
+        if (intent == null) {
+            finish();
+            return;
+        }
         String alias = intent.getStringExtra(EXTRA_ALIAS);
         if (alias != null) {
             displayInputKeyStoreAliasPassword(alias);
@@ -65,15 +73,15 @@ public class KeyStoreActivity extends AppCompatActivity {
      */
     @Deprecated
     private void displayInputKeyStoreAliasPassword(@NonNull String alias) {
-        AlertDialog ksDialog = new TextInputDialogBuilder(this, getString(R.string.input_keystore_alias_pass, alias))
+        new TextInputDialogBuilder(this, getString(R.string.input_keystore_alias_pass, alias))
                 .setTitle(getString(R.string.input_keystore_alias_pass, alias))
                 .setHelperText(getString(R.string.input_keystore_alias_pass_description, alias))
                 .setPositiveButton(R.string.ok, (dialog, which, inputText, isChecked) ->
                         savePass(KeyStoreManager.getPrefAlias(alias), inputText)
-                ).create();
-        ksDialog.setCancelable(false);
-        ksDialog.setOnDismissListener(dialog -> finish());
-        ksDialog.show();
+                )
+                .setCancelable(false)
+                .setOnDismissListener(dialog -> finish())
+                .show();
     }
 
     private void savePass(@NonNull String prefKey, @Nullable Editable rawPassword) {
@@ -83,7 +91,9 @@ public class KeyStoreActivity extends AppCompatActivity {
                 password = KeyStoreManager.getInstance().getAmKeyStorePassword();
             } catch (Exception e) {
                 Log.e(KeyStoreManager.TAG, "Could not get KeyStore password", e);
-                sendBroadcast(new Intent(KeyStoreManager.ACTION_KS_INTERACTION_END));
+                Intent broadcastIntent = new Intent(KeyStoreManager.ACTION_KS_INTERACTION_END);
+                broadcastIntent.setPackage(getPackageName());
+                sendBroadcast(broadcastIntent);
                 return;
             }
         } else {
@@ -92,6 +102,8 @@ public class KeyStoreActivity extends AppCompatActivity {
         }
         KeyStoreManager.savePass(this, prefKey, password);
         Utils.clearChars(password);
-        sendBroadcast(new Intent(KeyStoreManager.ACTION_KS_INTERACTION_END));
+        Intent broadcastIntent = new Intent(KeyStoreManager.ACTION_KS_INTERACTION_END);
+        broadcastIntent.setPackage(getPackageName());
+        sendBroadcast(broadcastIntent);
     }
 }

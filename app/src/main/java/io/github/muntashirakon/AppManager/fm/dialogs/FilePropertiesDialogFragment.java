@@ -281,7 +281,7 @@ public class FilePropertiesDialogFragment extends CapsuleBottomSheetDialogFragme
             mOwnerLayout.setEndIconVisible(isPhysicalWritable);
             mGroupLayout.setEndIconVisible(isPhysicalWritable);
             mModeLayout.setEndIconVisible(isPhysicalWritable);
-            mSelinuxContextLayout.setEndIconVisible(Ops.isRoot() && isPhysicalWritable);
+            mSelinuxContextLayout.setEndIconVisible(Ops.isWorkingUidRoot() && isPhysicalWritable);
         }
         if (noInit || mFileProperties.mode != fileProperties.mode) {
             mModeView.setText(fileProperties.mode != 0 ? FmUtils.getFormattedMode(fileProperties.mode) : "--");
@@ -471,7 +471,7 @@ public class FilePropertiesDialogFragment extends CapsuleBottomSheetDialogFragme
                 if (mOwnerList.isEmpty()) {
                     getOwnersAndGroupsInternal();
                 }
-                mOwnerListLiveData.postValue(mOwnerList);
+                mOwnerListLiveData.postValue(new ArrayList<>(mOwnerList));
             });
         }
 
@@ -480,7 +480,7 @@ public class FilePropertiesDialogFragment extends CapsuleBottomSheetDialogFragme
                 if (mGroupList.isEmpty()) {
                     getOwnersAndGroupsInternal();
                 }
-                mGroupListLiveData.postValue(mGroupList);
+                mGroupListLiveData.postValue(new ArrayList<>(mGroupList));
             });
         }
 

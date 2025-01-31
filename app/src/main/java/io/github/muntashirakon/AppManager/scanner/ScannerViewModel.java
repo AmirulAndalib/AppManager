@@ -38,7 +38,6 @@ import io.github.muntashirakon.AppManager.StaticDataset;
 import io.github.muntashirakon.AppManager.fm.ContentType2;
 import io.github.muntashirakon.AppManager.scanner.vt.VirusTotal;
 import io.github.muntashirakon.AppManager.scanner.vt.VtFileReport;
-import io.github.muntashirakon.AppManager.scanner.vt.VtFileScanMeta;
 import io.github.muntashirakon.AppManager.self.filecache.FileCache;
 import io.github.muntashirakon.AppManager.settings.FeatureController;
 import io.github.muntashirakon.AppManager.utils.DigestUtils;
@@ -79,7 +78,7 @@ public class ScannerViewModel extends AndroidViewModel implements VirusTotal.Ful
     private final MutableLiveData<List<SignatureInfo>> mLibraryClassesLiveData = new MutableLiveData<>();
     private final MutableLiveData<ArrayList<String>> mMissingClassesLiveData = new MutableLiveData<>();
     // Null = Uploading, NonNull = Queued
-    private final MutableLiveData<VtFileScanMeta> mVtFileScanMetaLiveData = new MutableLiveData<>();
+    private final MutableLiveData<String> mVtFileUploadLiveData = new MutableLiveData<>();
     // Null = Failed, NonNull = Result generated
     private final MutableLiveData<VtFileReport> mVtFileReportLiveData = new MutableLiveData<>();
     private final MutableLiveData<String> mPithusReportLiveData = new MutableLiveData<>();
@@ -164,8 +163,8 @@ public class ScannerViewModel extends AndroidViewModel implements VirusTotal.Ful
         return mVtFileReportLiveData;
     }
 
-    public LiveData<VtFileScanMeta> vtFileScanMetaLiveData() {
-        return mVtFileScanMetaLiveData;
+    public LiveData<String> vtFileUploadLiveData() {
+        return mVtFileUploadLiveData;
     }
 
     public LiveData<String> getPithusReportLiveData() {
@@ -234,24 +233,24 @@ public class ScannerViewModel extends AndroidViewModel implements VirusTotal.Ful
     @WorkerThread
     private void generateApkChecksumsAndFetchScanReports() {
         waitForFile();
+        Path file = Paths.getUnprivileged(mApkFile);
         String pithusReportUrl = null;
-        try {
-            Path file = Paths.getUnprivileged(mApkFile);
-            Pair<String, String>[] digests = DigestUtils.getDigests(file);
-            mApkChecksumsLiveData.postValue(digests);
-            if (FeatureController.isInternetEnabled()) {
-                String md5 = digests[0].second;
-                String sha256 = digests[2].second;
-                pithusReportUrl = ExUtils.exceptionAsNull(() -> Pithus.resolveReport(sha256));
-                if (mVt == null) return;
-                mVt.fetchReportsOrScan(file, md5, this);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-            mApkChecksumsLiveData.postValue(null);
-            mVtFileReportLiveData.postValue(null);
+        Pair<String, String>[] digests = ExUtils.exceptionAsNull(() -> DigestUtils.getDigests(file));
+        mApkChecksumsLiveData.postValue(digests);
+        if (digests != null && FeatureController.isInternetEnabled()) {
+            String sha256 = digests[2].second;
+            pithusReportUrl = ExUtils.exceptionAsNull(() -> Pithus.resolveReport(sha256));
         }
         mPithusReportLiveData.postValue(pithusReportUrl);
+        if (mVt != null && digests != null && FeatureController.isVirusTotalEnabled()) {
+            String md5 = digests[0].second;
+            try {
+                mVt.fetchFileReportOrScan(file, md5, this);
+            } catch (IOException e) {
+                e.printStackTrace();
+                mVtFileReportLiveData.postValue(null);
+            }
+        } else mVtFileReportLiveData.postValue(null);
     }
 
     private void loadApkVerifierResult() {
@@ -406,10 +405,10 @@ public class ScannerViewModel extends AndroidViewModel implements VirusTotal.Ful
     }
 
     @Override
-    public boolean scanFile() {
+    public boolean uploadFile() {
         mUploadingEnabled = false;
         mUploadingEnabledWatcher = new CountDownLatch(1);
-        mVtFileScanMetaLiveData.postValue(null);
+        mVtFileUploadLiveData.postValue(null);
         try {
             mUploadingEnabledWatcher.await(2, TimeUnit.MINUTES);
         } catch (InterruptedException ignore) {
@@ -418,12 +417,12 @@ public class ScannerViewModel extends AndroidViewModel implements VirusTotal.Ful
     }
 
     @Override
-    public void onScanningInitiated() {
+    public void onUploadInitiated() {
     }
 
     @Override
-    public void onScanCompleted(@NonNull VtFileScanMeta meta) {
-        mVtFileScanMetaLiveData.postValue(meta);
+    public void onUploadCompleted(@NonNull String permalink) {
+        mVtFileUploadLiveData.postValue(permalink);
     }
 
     @Override

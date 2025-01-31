@@ -22,6 +22,7 @@ public final class ManifestCompat {
         public static final String GET_HISTORICAL_APP_OPS_STATS = "android.permission.GET_HISTORICAL_APP_OPS_STATS";
         public static final String GET_RUNTIME_PERMISSIONS = "android.permission.GET_RUNTIME_PERMISSIONS";
         public static final String GRANT_RUNTIME_PERMISSIONS = "android.permission.GRANT_RUNTIME_PERMISSIONS";
+        public static final String INJECT_EVENTS = "android.permission.INJECT_EVENTS";
         @RequiresApi(Build.VERSION_CODES.Q)
         public static final String INSTALL_EXISTING_PACKAGES = "com.android.permission.INSTALL_EXISTING_PACKAGES";
         public static final String INTERACT_ACROSS_USERS = "android.permission.INTERACT_ACROSS_USERS";
@@ -39,6 +40,8 @@ public final class ManifestCompat {
         public static final String MANAGE_NETWORK_POLICY = "android.permission.MANAGE_NETWORK_POLICY";
         @RequiresApi(Build.VERSION_CODES.S)
         public static final String MANAGE_NOTIFICATION_LISTENERS = "android.permission.MANAGE_NOTIFICATION_LISTENERS";
+        @RequiresApi(Build.VERSION_CODES.P)
+        public static final String MANAGE_SENSORS = "android.permission.MANAGE_SENSORS";
         public static final String MANAGE_USERS = "android.permission.MANAGE_USERS";
         public static final String READ_PRIVILEGED_PHONE_STATE = "android.permission.READ_PRIVILEGED_PHONE_STATE";
         public static final String REAL_GET_TASKS = "android.permission.REAL_GET_TASKS";

@@ -209,6 +209,9 @@ public class MultiSelectionView extends MaterialCardView implements OnApplyWindo
     @Override
     protected Parcelable onSaveInstanceState() {
         Parcelable superState = super.onSaveInstanceState();
+        if (superState == null) {
+            return null;
+        }
         SavedState ss = new SavedState(superState);
         ss.currentHeight = mCurrentHeight;
         ss.selectionBottomPadding = mSelectionBottomPadding;
@@ -259,7 +262,7 @@ public class MultiSelectionView extends MaterialCardView implements OnApplyWindo
     @NonNull
     public WindowInsetsCompat onApplyWindowInsets(@NonNull View v, @NonNull WindowInsetsCompat insets) {
         WindowInsetsCompat newInsets = null;
-        if (ViewCompat.getFitsSystemWindows(this)) {
+        if (getFitsSystemWindows()) {
             newInsets = insets;
         }
         if (!ObjectsCompat.equals(mLastInsets, newInsets)) {
@@ -334,7 +337,7 @@ public class MultiSelectionView extends MaterialCardView implements OnApplyWindo
         if (mAdapter != null) {
             //noinspection PointlessNullCheck
             if (mAdapter.mRecyclerView != null
-                    && ViewCompat.getFitsSystemWindows(mAdapter.mRecyclerView)
+                    && mAdapter.mRecyclerView.getFitsSystemWindows()
                     && mLastInsets != null) {
                 mSelectionBottomPadding += mLastInsets.getSystemWindowInsetBottom();
             }
@@ -450,8 +453,6 @@ public class MultiSelectionView extends MaterialCardView implements OnApplyWindo
             setHasStableIds(true);
         }
 
-        public abstract int getHighlightColor();
-
         @AnyThread
         public abstract long getItemId(int position);
 
@@ -508,9 +509,13 @@ public class MultiSelectionView extends MaterialCardView implements OnApplyWindo
         public void toggleSelection(int position) {
             if (isSelected(position)) {
                 deselect(position);
-            } else select(position);
-            notifyItemChanged(position);
-            notifySelectionChange();
+                notifyItemChanged(position);
+                notifySelectionChange();
+            } else {
+                select(position);
+                notifySelectionChange();
+                notifyItemChanged(position);
+            }
         }
 
         @UiThread
@@ -519,8 +524,8 @@ public class MultiSelectionView extends MaterialCardView implements OnApplyWindo
             for (int position = 0; position < getItemCount(); ++position) {
                 select(position);
             }
-            notifyItemRangeChanged(0, getItemCount(), null);
             notifySelectionChange();
+            notifyItemRangeChanged(0, getItemCount(), null);
         }
 
         @UiThread
@@ -543,8 +548,8 @@ public class MultiSelectionView extends MaterialCardView implements OnApplyWindo
             for (int position = beginPosition; position <= endPosition; ++position) {
                 select(position);
             }
-            notifyItemRangeChanged(beginPosition, endPosition - beginPosition + 1);
             notifySelectionChange();
+            notifyItemRangeChanged(beginPosition, endPosition - beginPosition + 1);
         }
 
         @Override
@@ -570,7 +575,7 @@ public class MultiSelectionView extends MaterialCardView implements OnApplyWindo
 
         @AnyThread
         @Nullable
-        public OnLayoutChangeListener getLayoutChangeListener() {
+        private OnLayoutChangeListener getLayoutChangeListener() {
             return mLayoutChangeListener;
         }
 
@@ -612,12 +617,16 @@ public class MultiSelectionView extends MaterialCardView implements OnApplyWindo
             // Set focus right to select all
             holder.itemView.setNextFocusRightId(R.id.action_select_all);
             // Set selection background
-            if (isSelected(position)) {
-                if (holder.itemView instanceof MaterialCardView) {
-                    ((MaterialCardView) holder.itemView).setCardBackgroundColor(getHighlightColor());
-                } else {
-                    holder.itemView.setBackgroundResource(R.drawable.item_highlight);
+            boolean isSelected = isSelected(position);
+            if (holder.itemView instanceof MaterialCardView) {
+                MaterialCardView cardView = (MaterialCardView) holder.itemView;
+                if (cardView.isCheckable()) {
+                    cardView.setChecked(isSelected);
+                } else if (isSelected) {
+                    throw new UnsupportedOperationException("Card is not checkable");
                 }
+            } else if (isSelected) {
+                holder.itemView.setBackgroundResource(R.drawable.item_highlight);
             }
         }
     }

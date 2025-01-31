@@ -2,10 +2,7 @@
 
 package io.github.muntashirakon.AppManager.runningapps;
 
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.os.Bundle;
 import android.os.Process;
 import android.text.TextUtils;
@@ -19,7 +16,6 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBar;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
-import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -29,29 +25,30 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import io.github.muntashirakon.AppManager.BaseActivity;
 import io.github.muntashirakon.AppManager.R;
 import io.github.muntashirakon.AppManager.batchops.BatchOpsManager;
 import io.github.muntashirakon.AppManager.batchops.BatchOpsService;
+import io.github.muntashirakon.AppManager.batchops.BatchQueueItem;
 import io.github.muntashirakon.AppManager.compat.ManifestCompat;
 import io.github.muntashirakon.AppManager.logcat.LogViewerActivity;
 import io.github.muntashirakon.AppManager.logcat.struct.SearchCriteria;
 import io.github.muntashirakon.AppManager.misc.AdvancedSearchView;
 import io.github.muntashirakon.AppManager.scanner.vt.VtFileReport;
-import io.github.muntashirakon.AppManager.scanner.vt.VtFileScanMeta;
 import io.github.muntashirakon.AppManager.self.SelfPermissions;
 import io.github.muntashirakon.AppManager.settings.FeatureController;
 import io.github.muntashirakon.AppManager.settings.Ops;
 import io.github.muntashirakon.AppManager.settings.Prefs;
+import io.github.muntashirakon.AppManager.utils.ThreadUtils;
 import io.github.muntashirakon.AppManager.utils.UIUtils;
 import io.github.muntashirakon.multiselection.MultiSelectionActionsView;
 import io.github.muntashirakon.widget.MultiSelectionView;
-import io.github.muntashirakon.widget.SwipeRefreshLayout;
 
 public class RunningAppsActivity extends BaseActivity implements MultiSelectionView.OnSelectionChangeListener,
-        MultiSelectionActionsView.OnItemSelectedListener, AdvancedSearchView.OnQueryTextListener,
-        SwipeRefreshLayout.OnRefreshListener {
+        MultiSelectionActionsView.OnItemSelectedListener, AdvancedSearchView.OnQueryTextListener {
 
     @IntDef(value = {
             SORT_BY_PID,
@@ -97,18 +94,10 @@ public class RunningAppsActivity extends BaseActivity implements MultiSelectionV
     @Nullable
     private LinearProgressIndicator mProgressIndicator;
     @Nullable
-    private SwipeRefreshLayout mSwipeRefresh;
-    @Nullable
     private MultiSelectionView mMultiSelectionView;
     @Nullable
     private Menu mSelectionMenu;
-
-    private final BroadcastReceiver mBatchOpsBroadCastReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            refresh();
-        }
-    };
+    private Timer mTimer;
 
     @Override
     protected void onAuthenticated(Bundle savedInstanceState) {
@@ -122,11 +111,10 @@ public class RunningAppsActivity extends BaseActivity implements MultiSelectionV
         model = new ViewModelProvider(this).get(RunningAppsViewModel.class);
         mProgressIndicator = findViewById(R.id.progress_linear);
         mProgressIndicator.setVisibilityAfterHide(View.GONE);
-        mSwipeRefresh = findViewById(R.id.swipe_refresh);
-        mSwipeRefresh.setOnRefreshListener(this);
         RecyclerView recyclerView = findViewById(R.id.scrollView);
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        recyclerView.setLayoutManager(UIUtils.getGridLayoutAt450Dp(this));
         mAdapter = new RunningAppsAdapter(this);
+        mAdapter.setHasStableIds(false);
         recyclerView.setAdapter(mAdapter);
         // Recycler view is focused by default
         recyclerView.requestFocus();
@@ -148,9 +136,11 @@ public class RunningAppsActivity extends BaseActivity implements MultiSelectionV
             }
         });
         model.observeKillSelectedProcess().observe(this, processInfoList -> {
-            if (processInfoList.size() != 0) {
+            if (!processInfoList.isEmpty()) {
                 List<String> processNames = new ArrayList<String>() {{
-                    for (ProcessItem processItem : processInfoList) add(processItem.name);
+                    for (ProcessItem processItem : processInfoList) {
+                        add(processItem.name);
+                    }
                 }};
                 UIUtils.displayLongToast(R.string.failed_to_stop, TextUtils.join(", ", processNames));
             }
@@ -176,10 +166,10 @@ public class RunningAppsActivity extends BaseActivity implements MultiSelectionV
             RunningAppDetails fragment = RunningAppDetails.getInstance(processItem);
             fragment.show(getSupportFragmentManager(), RunningAppDetails.TAG);
         });
-        model.getVtFileScanMeta().observe(this, processItemVtFileScanMetaPair -> {
-            ProcessItem processItem = processItemVtFileScanMetaPair.first;
-            VtFileScanMeta vtFileScanMeta = processItemVtFileScanMetaPair.second;
-            if (vtFileScanMeta == null) {
+        model.getVtFileUpload().observe(this, processItemVtFilePermalinkPair -> {
+            ProcessItem processItem = processItemVtFilePermalinkPair.first;
+            String permalink = processItemVtFilePermalinkPair.second;
+            if (permalink == null) {
                 // Started uploading
                 UIUtils.displayShortToast(R.string.vt_uploading);
                 if (Prefs.VirusTotal.promptBeforeUpload()) {
@@ -263,9 +253,6 @@ public class RunningAppsActivity extends BaseActivity implements MultiSelectionV
             mEnableKillForSystem = !mEnableKillForSystem;
             Prefs.RunningApps.setEnableKillForSystemApps(mEnableKillForSystem);
             refresh();
-        } else if (id == R.id.action_refresh) {
-            refresh();
-            // Sort
         } else if (id == R.id.action_sort_by_pid) {
             model.setSortOrder(SORT_BY_PID);
             item.setChecked(true);
@@ -294,22 +281,25 @@ public class RunningAppsActivity extends BaseActivity implements MultiSelectionV
     @Override
     protected void onResume() {
         super.onResume();
-        refresh();
-        registerReceiver(mBatchOpsBroadCastReceiver, new IntentFilter(BatchOpsService.ACTION_BATCH_OPS_COMPLETED));
+        mTimer = new Timer("running_apps");
+        mTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                ThreadUtils.postOnMainThread(() -> {
+                    if (model != null) {
+                        model.loadProcesses();
+                        model.loadMemoryInfo();
+                    }
+                });
+            }
+        }, 0, 10_000);
     }
 
     @Override
     protected void onPause() {
+        mTimer.cancel();
+        mTimer.purge();
         super.onPause();
-        unregisterReceiver(mBatchOpsBroadCastReceiver);
-    }
-
-    @Override
-    public void onRefresh() {
-        if (mSwipeRefresh != null) {
-            mSwipeRefresh.setRefreshing(false);
-        }
-        refresh();
     }
 
     @Override
@@ -370,7 +360,7 @@ public class RunningAppsActivity extends BaseActivity implements MultiSelectionV
         forceStop.setEnabled(appsCount != 0 && appsCount == selectedItems.size());
         forceStop.setVisible(SelfPermissions.checkSelfOrRemotePermission(ManifestCompat.permission.FORCE_STOP_PACKAGES));
         preventBackground.setEnabled(appsCount != 0 && appsCount == selectedItems.size());
-        boolean killEnabled = Ops.isRoot();
+        boolean killEnabled = Ops.isWorkingUidRoot();
         if (killEnabled && !mEnableKillForSystem) {
             for (ProcessItem item : selectedItems) {
                 if (item.uid < Process.FIRST_APPLICATION_UID) {
@@ -379,7 +369,7 @@ public class RunningAppsActivity extends BaseActivity implements MultiSelectionV
                 }
             }
         }
-        kill.setEnabled(selectedItems.size() != 0 && killEnabled);
+        kill.setEnabled(!selectedItems.isEmpty() && killEnabled);
         return true;
     }
 
@@ -390,9 +380,8 @@ public class RunningAppsActivity extends BaseActivity implements MultiSelectionV
         }
         Intent intent = new Intent(this, BatchOpsService.class);
         BatchOpsManager.Result input = new BatchOpsManager.Result(model.getSelectedPackagesWithUsers());
-        intent.putStringArrayListExtra(BatchOpsService.EXTRA_OP_PKG, input.getFailedPackages());
-        intent.putIntegerArrayListExtra(BatchOpsService.EXTRA_OP_USERS, input.getAssociatedUserHandles());
-        intent.putExtra(BatchOpsService.EXTRA_OP, op);
+        BatchQueueItem item = BatchQueueItem.getBatchOpQueue(op, input.getFailedPackages(), input.getAssociatedUsers(), null);
+        intent.putExtra(BatchOpsService.EXTRA_QUEUE_ITEM, item);
         ContextCompat.startForegroundService(this, intent);
     }
 

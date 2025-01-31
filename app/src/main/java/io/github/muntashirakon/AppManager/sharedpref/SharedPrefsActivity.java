@@ -20,7 +20,6 @@ import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.widget.SearchView;
 import androidx.fragment.app.DialogFragment;
 import androidx.lifecycle.ViewModelProvider;
-import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -37,6 +36,7 @@ import io.github.muntashirakon.AppManager.intercept.IntentCompat;
 import io.github.muntashirakon.AppManager.utils.UIUtils;
 import io.github.muntashirakon.AppManager.utils.appearance.ColorCodes;
 import io.github.muntashirakon.io.Paths;
+import io.github.muntashirakon.util.AdapterUtils;
 import io.github.muntashirakon.util.UiUtils;
 import io.github.muntashirakon.widget.RecyclerView;
 
@@ -75,7 +75,7 @@ public class SharedPrefsActivity extends BaseActivity implements
         mProgressIndicator.setVisibilityAfterHide(View.GONE);
         mProgressIndicator.show();
         RecyclerView recyclerView = findViewById(android.R.id.list);
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        recyclerView.setLayoutManager(UIUtils.getGridLayoutAt450Dp(this));
         recyclerView.setEmptyView(findViewById(android.R.id.empty));
         mAdapter = new SharedPrefsListingAdapter(this);
         recyclerView.setAdapter(mAdapter);
@@ -152,7 +152,6 @@ public class SharedPrefsActivity extends BaseActivity implements
                     mViewModel.remove(prefItem.keyName);
                     break;
             }
-            mAdapter.notifyDataSetChanged();
         }
     }
 
@@ -264,12 +263,14 @@ public class SharedPrefsActivity extends BaseActivity implements
 
         void setDefaultList(@NonNull Map<String, Object> list) {
             mDefaultList = list.keySet().toArray(new String[0]);
-            mAdapterList = mDefaultList;
             mAdapterMap = list;
             if (!TextUtils.isEmpty(mConstraint)) {
                 getFilter().filter(mConstraint);
+            } else {
+                int previousCount = mAdapterList != null ? mAdapterList.length : 0;
+                mAdapterList = mDefaultList;
+                AdapterUtils.notifyDataSetChanged(this, previousCount, mAdapterList.length);
             }
-            notifyDataSetChanged();
         }
 
         @Override
@@ -314,7 +315,7 @@ public class SharedPrefsActivity extends BaseActivity implements
                         String constraint = charSequence.toString().toLowerCase(Locale.ROOT);
                         mConstraint = constraint;
                         FilterResults filterResults = new FilterResults();
-                        if (constraint.length() == 0) {
+                        if (constraint.isEmpty()) {
                             filterResults.count = 0;
                             filterResults.values = null;
                             return filterResults;
@@ -333,12 +334,13 @@ public class SharedPrefsActivity extends BaseActivity implements
 
                     @Override
                     protected void publishResults(CharSequence charSequence, FilterResults filterResults) {
+                        int previousCount = mAdapterList != null ? mAdapterList.length : 0;
                         if (filterResults.values == null) {
                             mAdapterList = mDefaultList;
                         } else {
                             mAdapterList = (String[]) filterResults.values;
                         }
-                        notifyDataSetChanged();
+                        AdapterUtils.notifyDataSetChanged(SharedPrefsListingAdapter.this, previousCount, mAdapterList.length);
                     }
                 };
             return mFilter;

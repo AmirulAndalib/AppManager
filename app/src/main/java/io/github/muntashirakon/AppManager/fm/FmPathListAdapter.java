@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Objects;
 
 import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.util.AdapterUtils;
 import io.github.muntashirakon.AppManager.utils.Utils;
 
 class FmPathListAdapter extends RecyclerView.Adapter<FmPathListAdapter.PathHolder> {
@@ -58,10 +59,12 @@ class FmPathListAdapter extends RecyclerView.Adapter<FmPathListAdapter.PathHolde
             setCurrentPosition(paths.size() - 1);
         } else {
             // Case 2
+            int previousCount = mPathParts.size();
             mPathParts.clear();
             mPathParts.addAll(paths);
-            mCurrentPosition = mPathParts.size() - 1;
-            notifyDataSetChanged();
+            int currentCount = mPathParts.size();
+            mCurrentPosition = currentCount - 1;
+            AdapterUtils.notifyDataSetChanged(this, previousCount, currentCount);
         }
     }
 

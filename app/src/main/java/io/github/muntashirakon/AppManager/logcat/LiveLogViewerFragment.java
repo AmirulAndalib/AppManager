@@ -65,13 +65,13 @@ public class LiveLogViewerFragment extends AbsLogViewerFragment implements LogVi
     }
 
     @Override
-    public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
-        inflater.inflate(R.menu.fragment_live_log_viewer_actions, menu);
+    public void onCreateMenu(@NonNull Menu menu, @NonNull MenuInflater menuInflater) {
+        menuInflater.inflate(R.menu.fragment_live_log_viewer_actions, menu);
     }
 
     @Override
-    public void onPrepareOptionsMenu(@NonNull Menu menu) {
-        super.onPrepareOptionsMenu(menu);
+    public void onPrepareMenu(@NonNull Menu menu) {
+        super.onPrepareMenu(menu);
 
         boolean recordingInProgress = ServiceHelper.checkIfServiceIsRunning(requireContext().getApplicationContext(),
                 LogcatRecordingService.class);
@@ -85,7 +85,7 @@ public class LiveLogViewerFragment extends AbsLogViewerFragment implements LogVi
     }
 
     @Override
-    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+    public boolean onMenuItemSelected(@NonNull MenuItem item) {
         int id = item.getItemId();
         if (id == R.id.action_play_pause) {
             if (mViewModel.isLogcatPaused()) {
@@ -108,7 +108,7 @@ public class LiveLogViewerFragment extends AbsLogViewerFragment implements LogVi
             });
         } else if (id == R.id.action_crazy_logger_service) {
             ServiceHelper.startOrStopCrazyLogger(mActivity);
-        } else return super.onOptionsItemSelected(item);
+        } else return super.onMenuItemSelected(item);
         return true;
     }
 
@@ -116,10 +116,9 @@ public class LiveLogViewerFragment extends AbsLogViewerFragment implements LogVi
     public void onNewLogsAvailable(@NonNull List<LogLine> logLines) {
         mActivity.hideProgressBar();
         for (LogLine logLine : logLines) {
-            mLogListAdapter.addWithFilter(logLine, mQueryString, false);
+            mLogListAdapter.addWithFilter(logLine, mSearchCriteria, true);
             mActivity.addToAutocompleteSuggestions(logLine);
         }
-        mLogListAdapter.notifyDataSetChanged();
 
         // How many logs to keep in memory, to avoid OutOfMemoryError
         int maxNumLogLines = Prefs.LogViewer.getDisplayLimit();

@@ -88,6 +88,11 @@ public final class UiUtils {
         return (int) (widthDp / columnWidth + 0.5);
     }
 
+    public static void showKeyboard(@NonNull View v) {
+        InputMethodManager imm = (InputMethodManager) v.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+        imm.showSoftInput(v, InputMethodManager.SHOW_IMPLICIT);
+    }
+
     public static void hideKeyboard(@NonNull View v) {
         InputMethodManager imm = (InputMethodManager) v.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
         imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
@@ -147,27 +152,40 @@ public final class UiUtils {
                                                @Nullable Rect initialMargin);
     }
 
-    @SuppressWarnings("deprecation")
     public static void applyWindowInsetsAsPaddingNoTop(View v) {
+        applyWindowInsetsAsPadding(v, false, true, true, true);
+    }
+
+    public static void applyWindowInsetsNone(View v) {
+        applyWindowInsetsAsPadding(v, false, false, false, false);
+    }
+
+    public static void applyWindowInsetsAsPadding(View v, boolean applyVertical, boolean applyHorizontal) {
+        applyWindowInsetsAsPadding(v, applyVertical, applyVertical, applyHorizontal, applyHorizontal);
+    }
+
+    @SuppressWarnings("deprecation")
+    public static void applyWindowInsetsAsPadding(View v, boolean applyTop, boolean applyBottom, boolean applyStart, boolean applyEnd) {
         doOnApplyWindowInsets(v, (view, insets, initialPadding, initialMargin) -> {
             if (!ViewCompat.getFitsSystemWindows(view)) {
                 // Do not add padding if fitsSystemWindows is false
                 return insets;
             }
-            int top = initialPadding.top;
-            int bottom = initialPadding.bottom + insets.getSystemWindowInsetBottom();
-
+            int systemWindowInsetTop = insets.getSystemWindowInsetTop();
+            int systemWindowInsetBottom = insets.getSystemWindowInsetBottom();
+            int top = initialPadding.top + (applyTop ? systemWindowInsetTop : 0);
+            int bottom = initialPadding.bottom + (applyBottom ? systemWindowInsetBottom : 0);
             boolean isRtl = ViewCompat.getLayoutDirection(view) == ViewCompat.LAYOUT_DIRECTION_RTL;
             int systemWindowInsetLeft = insets.getSystemWindowInsetLeft();
             int systemWindowInsetRight = insets.getSystemWindowInsetRight();
             int start;
             int end;
             if (isRtl) {
-                start = initialPadding.right + systemWindowInsetRight;
-                end = initialPadding.left + systemWindowInsetLeft;
+                start = initialPadding.right + (applyStart ? systemWindowInsetRight : 0);
+                end = initialPadding.left + (applyEnd ? systemWindowInsetLeft : 0);
             } else {
-                start = initialPadding.left + systemWindowInsetLeft;
-                end = initialPadding.right + systemWindowInsetRight;
+                start = initialPadding.left + (applyStart ? systemWindowInsetLeft : 0);
+                end = initialPadding.right + (applyEnd ? systemWindowInsetRight : 0);
             }
             ViewCompat.setPaddingRelative(view, start, top, end, bottom);
             return insets;
@@ -230,8 +248,11 @@ public final class UiUtils {
     }
 
     public static boolean isDarkMode(@NonNull Context context) {
-        return (context.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
-                == Configuration.UI_MODE_NIGHT_YES;
+        Configuration conf = context.getResources().getConfiguration();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return conf.isNightModeActive();
+        }
+        return (conf.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
     }
 
     @SuppressWarnings("deprecation")
@@ -251,8 +272,35 @@ public final class UiUtils {
     }
 
     public static boolean isDarkModeOnSystem() {
-        return (Resources.getSystem().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
-                == Configuration.UI_MODE_NIGHT_YES;
+        Configuration conf = Resources.getSystem().getConfiguration();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return conf.isNightModeActive();
+        }
+        return (conf.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    /**
+     * Fixes focus by forcing Android to focus on the current view and reset
+     */
+    public static void fixFocus(@NonNull View view) {
+        if (!view.hasFocus()) {
+            boolean focusable = view.isFocusable();
+            boolean focusableInTouch = view.isFocusableInTouchMode();
+            if (!focusable) {
+                view.setFocusable(true);
+            }
+            if (!focusableInTouch) {
+                view.setFocusableInTouchMode(true);
+            }
+            view.requestFocus();
+            view.post(view::clearFocus);
+            if (!focusable) {
+                view.setFocusable(false);
+            }
+            if (!focusableInTouch) {
+                view.setFocusableInTouchMode(false);
+            }
+        }
     }
 
     @SuppressWarnings("deprecation")

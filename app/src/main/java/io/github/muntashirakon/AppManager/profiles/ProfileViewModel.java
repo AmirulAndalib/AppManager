@@ -27,6 +27,7 @@ import org.json.JSONException;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -141,7 +142,8 @@ public class ProfileViewModel extends AndroidViewModel {
                 }
                 List<String> selectedPackages = mProfile != null ?
                         Arrays.asList(mProfile.packages) : Collections.emptyList();
-                Collections.sort(itemPairs, (o1, o2) -> o1.first.toString().compareToIgnoreCase(o2.first.toString()));
+                Collator collator = Collator.getInstance();
+                Collections.sort(itemPairs, (o1, o2) -> collator.compare(o1.first.toString(), o2.first.toString()));
                 Collections.sort(itemPairs, (o1, o2) -> {
                     boolean o1Selected = selectedPackages.contains(o1.second.packageName);
                     boolean o2Selected = selectedPackages.contains(o2.second.packageName);
@@ -373,6 +375,7 @@ public class ProfileViewModel extends AndroidViewModel {
                             AppsFragment.AppsFragmentItem oldItem = oldItems.get(i);
                             if (oldItem.applicationInfo != null) {
                                 item.applicationInfo = oldItem.applicationInfo;
+                                item.label = oldItem.label;
                             }
                         }
                     }
@@ -553,13 +556,13 @@ public class ProfileViewModel extends AndroidViewModel {
     }
 
     @Nullable
-    public String[] getAppOps() {
+    public String[] getAppOpsStr() {
         if (mProfile == null) return null;
         int[] appOps = mProfile.appOps;
         if (appOps == null) return null;
         String[] appOpsStr = new String[appOps.length];
         for (int i = 0; i < appOps.length; ++i) {
-            appOpsStr[i] = String.valueOf(appOps[i]);
+            appOpsStr[i] = AppOpsManagerCompat.opToName(appOps[i]);
         }
         return appOpsStr;
     }

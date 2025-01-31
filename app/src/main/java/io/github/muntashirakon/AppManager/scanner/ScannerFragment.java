@@ -46,10 +46,11 @@ import java.util.regex.Pattern;
 
 import io.github.muntashirakon.AppManager.R;
 import io.github.muntashirakon.AppManager.scanner.vt.VtFileReport;
-import io.github.muntashirakon.AppManager.scanner.vt.VtFileReportScanItem;
+import io.github.muntashirakon.AppManager.scanner.vt.VtAvEngineResult;
 import io.github.muntashirakon.AppManager.settings.FeatureController;
 import io.github.muntashirakon.AppManager.settings.Prefs;
 import io.github.muntashirakon.AppManager.utils.ArrayUtils;
+import io.github.muntashirakon.AppManager.utils.DateUtils;
 import io.github.muntashirakon.AppManager.utils.DigestUtils;
 import io.github.muntashirakon.AppManager.utils.LangUtils;
 import io.github.muntashirakon.AppManager.utils.PackageUtils;
@@ -98,14 +99,13 @@ public class ScannerFragment extends Fragment {
         signaturesView.setCardBackgroundColor(cardColor);
         MaterialCardView missingLibsView = view.findViewById(R.id.missing_libs);
         missingLibsView.setCardBackgroundColor(cardColor);
-        boolean isInternetEnabled = FeatureController.isInternetEnabled();
         // VirusTotal
-        if (!isInternetEnabled || Prefs.VirusTotal.getApiKey() == null) {
+        if (!FeatureController.isVirusTotalEnabled() || Prefs.VirusTotal.getApiKey() == null) {
             mVtContainerView.setVisibility(View.GONE);
             view.findViewById(R.id.vt_disclaimer).setVisibility(View.GONE);
         }
         // Pithus
-        if (!isInternetEnabled) {
+        if (!FeatureController.isInternetEnabled()) {
             pithusContainerView.setVisibility(View.GONE);
         }
         // Checksum
@@ -143,7 +143,7 @@ public class ScannerFragment extends Fragment {
             SpannableStringBuilder builder = new SpannableStringBuilder();
             builder.append(PackageUtils.getApkVerifierInfo(result, mActivity));
             List<X509Certificate> certificates = result.getSignerCertificates();
-            if (certificates != null && certificates.size() > 0) {
+            if (certificates != null && !certificates.isEmpty()) {
                 builder.append(getCertificateInfo(mActivity, certificates));
             }
             checksumDescription.setText(builder);
@@ -165,7 +165,7 @@ public class ScannerFragment extends Fragment {
         });
         // List missing classes
         mViewModel.missingClassesLiveData().observe(getViewLifecycleOwner(), missingClasses -> {
-            if (missingClasses.size() > 0) {
+            if (!missingClasses.isEmpty()) {
                 ((TextView) view.findViewById(R.id.missing_libs_title)).setText(getResources().getQuantityString(R.plurals.missing_signatures, missingClasses.size(), missingClasses.size()));
                 missingLibsView.setVisibility(View.VISIBLE);
                 missingLibsView.setOnClickListener(v2 -> new SearchableMultiChoiceDialogBuilder<>(mActivity, missingClasses,
@@ -174,18 +174,20 @@ public class ScannerFragment extends Fragment {
                         .showSelectAll(false)
                         .setNegativeButton(R.string.ok, null)
                         .setNeutralButton(R.string.send_selected, (dialog, which, selectedItems) -> {
+                            String message = "Package: " + mViewModel.getPackageName() + "\n" +
+                                    "Signatures: " + selectedItems;
                             Intent i = new Intent(Intent.ACTION_SEND);
                             i.setType("message/rfc822");
-                            i.putExtra(Intent.EXTRA_EMAIL, new String[]{"muntashirakon@riseup.net"});
+                            i.putExtra(Intent.EXTRA_EMAIL, new String[]{"am4android@riseup.net"});
                             i.putExtra(Intent.EXTRA_SUBJECT, "App Manager: Missing signatures");
-                            i.putExtra(Intent.EXTRA_TEXT, selectedItems.toString());
+                            i.putExtra(Intent.EXTRA_TEXT, message);
                             startActivity(Intent.createChooser(i, getText(R.string.signatures)));
                         })
                         .show());
             }
         });
-        mViewModel.vtFileScanMetaLiveData().observe(getViewLifecycleOwner(), vtFileScanMeta -> {
-            if (vtFileScanMeta == null) {
+        mViewModel.vtFileUploadLiveData().observe(getViewLifecycleOwner(), permalink -> {
+            if (permalink == null) {
                 // Uploading
                 mVtTitleView.setText(R.string.vt_uploading);
                 if (Prefs.VirusTotal.promptBeforeUpload()) {
@@ -200,7 +202,7 @@ public class ScannerFragment extends Fragment {
             } else {
                 // Upload completed and queued
                 mVtTitleView.setText(R.string.vt_queued);
-                mVtDescriptionView.setText(vtFileScanMeta.getPermalink());
+                mVtDescriptionView.setText(permalink);
             }
         });
         mViewModel.vtFileReportLiveData().observe(getViewLifecycleOwner(), vtFileReport -> {
@@ -209,10 +211,6 @@ public class ScannerFragment extends Fragment {
                 mVtTitleView.setText(R.string.vt_failed);
                 mVtDescriptionView.setText(null);
                 mVtContainerView.setOnClickListener(null);
-            } else if (vtFileReport.getPositives() == null) {
-                // Still queued
-                mVtTitleView.setText(R.string.vt_queued);
-                mVtDescriptionView.setText(vtFileReport.getPermalink());
             } else {
                 // Successful
                 publishVirusTotalReport(vtFileReport);
@@ -241,27 +239,41 @@ public class ScannerFragment extends Fragment {
         } else if (positives <= 12) {
             color = ColorCodes.getVirusTotalUnsafeIndicatorColor(mActivity);
         } else color = ColorCodes.getVirusTotalExtremelyUnsafeIndicatorColor(mActivity);
-        CharSequence scanDate = getString(R.string.vt_scan_date, vtFileReport.getScanDate());
-        String permalink = vtFileReport.getPermalink();
+        CharSequence scanDate = getString(R.string.vt_scan_date, DateUtils.formatDateTime(mActivity, vtFileReport.scanDate));
+        String permalink = vtFileReport.permalink;
         Spanned result;
-        Map<String, VtFileReportScanItem> vtFileReportScanItems = vtFileReport.getScans();
-        if (vtFileReportScanItems != null) {
+        List<VtAvEngineResult> vtFileReportScanItems = vtFileReport.results;
+        if (!vtFileReportScanItems.isEmpty()) {
             int colorUnsafe = ColorCodes.getVirusTotalExtremelyUnsafeIndicatorColor(mActivity);
             int colorSafe = ColorCodes.getVirusTotalSafeIndicatorColor(mActivity);
             ArrayList<Spannable> detectedList = new ArrayList<>();
+            ArrayList<Spannable> suspiciousList = new ArrayList<>();
             ArrayList<Spannable> undetectedList = new ArrayList<>();
-            for (String avName : vtFileReportScanItems.keySet()) {
-                VtFileReportScanItem item = Objects.requireNonNull(vtFileReportScanItems.get(avName));
-                if (item.isDetected()) {
-                    detectedList.add(new SpannableStringBuilder(getColoredText(getPrimaryText(mActivity, avName),
-                            colorUnsafe)).append(getSmallerText(" (" + item.getVersion() + ")"))
-                            .append("\n").append(item.getMalware()));
-                } else {
-                    undetectedList.add(new SpannableStringBuilder(getColoredText(getPrimaryText(mActivity, avName),
-                            colorSafe)).append(getSmallerText(" (" + item.getVersion() + ")")));
+            ArrayList<Spannable> neutralList = new ArrayList<>();
+            for (VtAvEngineResult item : vtFileReportScanItems) {
+                SpannableStringBuilder sb = new SpannableStringBuilder();
+                Spannable title = getPrimaryText(mActivity, item.engineName);
+                if (item.category < VtAvEngineResult.CAT_UNDETECTED) {
+                    sb.append(title);
+                    neutralList.add(sb);
+                } else if (item.category < VtAvEngineResult.CAT_SUSPICIOUS) {
+                    sb.append(getColoredText(title, colorSafe));
+                    undetectedList.add(sb);
+                } else if (item.category == VtAvEngineResult.CAT_SUSPICIOUS) {
+                    sb.append(getColoredText(title, colorUnsafe));
+                    suspiciousList.add(sb);
+                } else { // malicious
+                    sb.append(getColoredText(title, colorUnsafe));
+                    detectedList.add(sb);
+                }
+                sb.append(getSmallerText(" (" + item.engineVersion + ")"));
+                if (item.result != null) {
+                    sb.append("\n").append(item.result);
                 }
             }
+            detectedList.addAll(suspiciousList);
             detectedList.addAll(undetectedList);
+            detectedList.addAll(neutralList);
             result = UiUtils.getOrderedList(detectedList);
         } else result = null;
         mVtTitleView.setText(getColoredText(resultSummary, color));
@@ -277,7 +289,7 @@ public class ScannerFragment extends Fragment {
     @NonNull
     private Map<String, SpannableStringBuilder> getNativeLibraryInfo(boolean trackerOnly) {
         Collection<String> nativeLibsInApk = mViewModel.getNativeLibraries();
-        if (nativeLibsInApk.size() == 0) return new HashMap<>();
+        if (nativeLibsInApk.isEmpty()) return new HashMap<>();
         String[] libNames = getResources().getStringArray(R.array.lib_native_names);
         String[] libSignatures = getResources().getStringArray(R.array.lib_native_signatures);
         int[] isTracker = getResources().getIntArray(R.array.lib_native_is_tracker);

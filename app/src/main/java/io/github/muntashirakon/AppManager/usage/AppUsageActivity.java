@@ -11,13 +11,13 @@ import android.provider.Settings;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.ArrayAdapter;
 
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.ActionBar;
 import androidx.core.app.ActivityCompat;
 import androidx.lifecycle.ViewModelProvider;
-import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.progressindicator.LinearProgressIndicator;
@@ -27,7 +27,10 @@ import io.github.muntashirakon.AppManager.R;
 import io.github.muntashirakon.AppManager.self.SelfPermissions;
 import io.github.muntashirakon.AppManager.settings.FeatureController;
 import io.github.muntashirakon.AppManager.utils.BetterActivityResult;
+import io.github.muntashirakon.AppManager.utils.UIUtils;
+import io.github.muntashirakon.adapters.SelectedArrayAdapter;
 import io.github.muntashirakon.view.ProgressIndicatorCompat;
+import io.github.muntashirakon.widget.MaterialSpinner;
 import io.github.muntashirakon.widget.RecyclerView;
 import io.github.muntashirakon.widget.SwipeRefreshLayout;
 
@@ -63,11 +66,23 @@ public class AppUsageActivity extends BaseActivity implements SwipeRefreshLayout
         progressIndicator = findViewById(R.id.progress_linear);
         progressIndicator.setVisibilityAfterHide(View.GONE);
 
+        // Interval
+        MaterialSpinner spinner = findViewById(R.id.spinner);
+        spinner.requestFocus();
+        ArrayAdapter<CharSequence> intervalSpinnerAdapter = SelectedArrayAdapter.createFromResource(this,
+                R.array.usage_interval_dropdown_list, io.github.muntashirakon.ui.R.layout.auto_complete_dropdown_item_small);
+        spinner.setAdapter(intervalSpinnerAdapter);
+        spinner.setSelection(viewModel.getCurrentInterval());
+        spinner.setOnItemClickListener((parent, view, position, id) -> {
+            ProgressIndicatorCompat.setVisibility(progressIndicator, true);
+            viewModel.setCurrentInterval(position);
+        });
+
         // Get usage stats
         mAppUsageAdapter = new AppUsageAdapter(this);
         RecyclerView recyclerView = findViewById(R.id.scrollView);
         recyclerView.setEmptyView(findViewById(android.R.id.empty));
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        recyclerView.setLayoutManager(UIUtils.getGridLayoutAt450Dp(this));
         recyclerView.setAdapter(mAppUsageAdapter);
 
         mSwipeRefresh = findViewById(R.id.swipe_refresh);

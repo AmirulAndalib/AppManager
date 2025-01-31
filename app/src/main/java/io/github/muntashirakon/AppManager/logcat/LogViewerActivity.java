@@ -13,9 +13,7 @@ import android.provider.BaseColumns;
 import android.text.TextUtils;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.ListView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.activity.result.ActivityResult;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -30,6 +28,7 @@ import androidx.cursoradapter.widget.SimpleCursorAdapter;
 import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
@@ -64,10 +63,12 @@ import io.github.muntashirakon.AppManager.utils.MultithreadedExecutor;
 import io.github.muntashirakon.AppManager.utils.StoragePermission;
 import io.github.muntashirakon.AppManager.utils.ThreadUtils;
 import io.github.muntashirakon.AppManager.utils.UIUtils;
+import io.github.muntashirakon.dialog.DialogTitleBuilder;
 import io.github.muntashirakon.dialog.TextInputDropdownDialogBuilder;
 import io.github.muntashirakon.io.Path;
 import io.github.muntashirakon.io.Paths;
 import io.github.muntashirakon.util.UiUtils;
+import io.github.muntashirakon.widget.RecyclerView;
 import io.github.muntashirakon.widget.SearchView;
 
 // Copyright 2012 Nolan Lawson
@@ -77,7 +78,7 @@ public class LogViewerActivity extends BaseActivity implements SearchView.OnQuer
     public static final String TAG = LogViewerActivity.class.getSimpleName();
 
     public interface SearchingInterface {
-        void onQuery(@Nullable String searchTerm);
+        void onQuery(@Nullable SearchCriteria searchCriteria);
     }
 
     public static final String EXTRA_FILTER = "filter";
@@ -96,7 +97,8 @@ public class LogViewerActivity extends BaseActivity implements SearchView.OnQuer
     @Nullable
     private AlertDialog mLoadingDialog;
     private SearchView mSearchView;
-    private String mSearchQuery;
+    @Nullable
+    private SearchCriteria mSearchCriteria;
     private boolean mDynamicallyEnteringSearchQuery;
     private final Set<String> mSearchSuggestionsSet = new HashSet<>();
     private CursorAdapter mSearchSuggestionsAdapter;
@@ -124,7 +126,7 @@ public class LogViewerActivity extends BaseActivity implements SearchView.OnQuer
             context.startActivity(Intent.createChooser(actionSendIntent, context.getResources().getText(R.string.send_log_title))
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         } catch (Exception e) {
-            Toast.makeText(context, e.getMessage(), Toast.LENGTH_LONG).show();
+            UIUtils.displayLongToast(e.getMessage());
         }
     }
 
@@ -285,11 +287,10 @@ public class LogViewerActivity extends BaseActivity implements SearchView.OnQuer
         if (!TextUtils.isEmpty(level)) {
             int logLevelLimit = LogLine.convertCharToLogLevel(level.charAt(0));
             if (logLevelLimit == -1) {
-                String invalidLevel = getString(R.string.toast_invalid_level, level);
-                Toast.makeText(this, invalidLevel, Toast.LENGTH_LONG).show();
+                UIUtils.displayLongToast(R.string.toast_invalid_level, level);
             } else {
                 mViewModel.setLogLevel(logLevelLimit);
-                search(mSearchQuery);
+                search(mSearchCriteria);
             }
         }
     }
@@ -304,7 +305,7 @@ public class LogViewerActivity extends BaseActivity implements SearchView.OnQuer
     }
 
     @Override
-    protected void onNewIntent(Intent intent) {
+    protected void onNewIntent(@NonNull Intent intent) {
         super.onNewIntent(intent);
         applyFiltersFromIntent(intent);
         Uri dataUri = IntentCompat.getDataUri(intent);
@@ -345,7 +346,7 @@ public class LogViewerActivity extends BaseActivity implements SearchView.OnQuer
                 .commit();
     }
 
-    private void populateSuggestionsAdapter(String query) {
+    private void populateSuggestionsAdapter(@Nullable String query) {
         final MatrixCursor c = new MatrixCursor(new String[]{BaseColumns._ID, "suggestion"});
         List<String> suggestionsForQuery = getSuggestionsForQuery(query);
         for (int i = 0, suggestionsForQuerySize = suggestionsForQuery.size(); i < suggestionsForQuerySize; i++) {
@@ -355,7 +356,8 @@ public class LogViewerActivity extends BaseActivity implements SearchView.OnQuer
         mSearchSuggestionsAdapter.changeCursor(c);
     }
 
-    private List<String> getSuggestionsForQuery(String query) {
+    @NonNull
+    private List<String> getSuggestionsForQuery(@Nullable String query) {
         List<String> suggestions = new ArrayList<>(mSearchSuggestionsSet);
         Collections.sort(suggestions, String.CASE_INSENSITIVE_ORDER);
         List<String> actualSuggestions = new ArrayList<>();
@@ -382,7 +384,7 @@ public class LogViewerActivity extends BaseActivity implements SearchView.OnQuer
     @Override
     public boolean onSearchByClick(MenuItem item, LogLine logLine) {
         if (logLine != null) {
-            if (logLine.getProcessId() == -1) {
+            if (logLine.getPid() == -1) {
                 // invalid line
                 return false;
             }
@@ -400,7 +402,7 @@ public class LogViewerActivity extends BaseActivity implements SearchView.OnQuer
     @Override
     public boolean onQueryTextChange(String newText) {
         if (!mDynamicallyEnteringSearchQuery) {
-            search(newText);
+            search(new SearchCriteria(newText));
             populateSuggestionsAdapter(newText);
         }
         mDynamicallyEnteringSearchQuery = false;
@@ -414,7 +416,7 @@ public class LogViewerActivity extends BaseActivity implements SearchView.OnQuer
 
     @Override
     public boolean onSuggestionClick(int position) {
-        List<String> suggestions = getSuggestionsForQuery(mSearchQuery);
+        List<String> suggestions = getSuggestionsForQuery(mSearchCriteria != null ? mSearchCriteria.query : null);
         if (!suggestions.isEmpty()) {
             mSearchView.setQuery(suggestions.get(position), true);
         }
@@ -467,14 +469,32 @@ public class LogViewerActivity extends BaseActivity implements SearchView.OnQuer
                 .setNegativeButton(R.string.close, null)
                 .show();
 
+        TextInputLayout pkg = view.findViewById(R.id.search_by_pkg);
         TextInputLayout tag = view.findViewById(R.id.search_by_tag);
+        TextInputLayout uid = view.findViewById(R.id.search_by_uid);
         TextInputLayout pid = view.findViewById(R.id.search_by_pid);
 
+        if (logLine.getPackageName() == null) {
+            pkg.setVisibility(View.GONE);
+        }
+        if (logLine.getUidOwner() == null) {
+            uid.setVisibility(View.GONE);
+        }
+
+        TextView pkgText = pkg.getEditText();
         TextView tagText = tag.getEditText();
+        TextView uidText = uid.getEditText();
         TextView pidText = pid.getEditText();
 
+        Objects.requireNonNull(pkgText).setText(logLine.getPackageName());
         Objects.requireNonNull(tagText).setText(logLine.getTagName());
-        Objects.requireNonNull(pidText).setText(String.valueOf(logLine.getProcessId()));
+        Objects.requireNonNull(uidText).setText(String.format(Locale.ROOT, "%s (%d)", logLine.getUidOwner(), logLine.getUid()));
+        Objects.requireNonNull(pidText).setText(String.valueOf(logLine.getPid()));
+
+        pkg.setEndIconOnClickListener(v -> {
+            setSearchQuery(SearchCriteria.PKG_KEYWORD + logLine.getPackageName());
+            dialog.dismiss();
+        });
 
         tag.setEndIconOnClickListener(v -> {
             String tagQuery = (logLine.getTagName().contains(" ")) ? ('"' + logLine.getTagName() + '"') : logLine.getTagName();
@@ -482,8 +502,13 @@ public class LogViewerActivity extends BaseActivity implements SearchView.OnQuer
             dialog.dismiss();
         });
 
+        uid.setEndIconOnClickListener(v -> {
+            setSearchQuery(SearchCriteria.UID_KEYWORD + logLine.getUidOwner());
+            dialog.dismiss();
+        });
+
         pid.setEndIconOnClickListener(v -> {
-            setSearchQuery(SearchCriteria.PID_KEYWORD + logLine.getProcessId());
+            setSearchQuery(SearchCriteria.PID_KEYWORD + logLine.getPid());
             dialog.dismiss();
         });
     }
@@ -499,49 +524,46 @@ public class LogViewerActivity extends BaseActivity implements SearchView.OnQuer
     }
 
     private void showFiltersDialog(List<LogFilter> filters) {
-        LogFilterAdapter logFilterAdapter = new LogFilterAdapter(this, filters);
-        ListView view = new ListView(this);
-        view.setAdapter(logFilterAdapter);
-        view.setDivider(null);
-        view.setDividerHeight(0);
-        View footer = getLayoutInflater().inflate(R.layout.header_logcat_add_filter, view, false);
-        view.addFooterView(footer);
+        LogFilterAdapter logFilterAdapter = new LogFilterAdapter(filters);
+        RecyclerView recyclerView = new RecyclerView(this);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        recyclerView.setAdapter(logFilterAdapter);
 
-        footer.setOnClickListener(v -> new TextInputDropdownDialogBuilder(this, R.string.text_filter_text)
-                .setTitle(R.string.add_filter)
-                .setDropdownItems(new ArrayList<>(mSearchSuggestionsSet), -1, true)
-                .setPositiveButton(android.R.string.ok, (dialog1, which, inputText, isChecked) ->
-                        handleNewFilterText(inputText == null ? "" : inputText.toString(), logFilterAdapter))
-                .setNegativeButton(R.string.cancel, null)
-                .show());
-
-        AlertDialog alertDialog = new MaterialAlertDialogBuilder(this)
+        DialogTitleBuilder builder = new DialogTitleBuilder(this)
                 .setTitle(R.string.saved_filters)
-                .setView(view)
+                .setEndIcon(R.drawable.ic_add, v -> new TextInputDropdownDialogBuilder(this, R.string.text_filter_text)
+                        .setTitle(R.string.add_filter)
+                        .setDropdownItems(new ArrayList<>(mSearchSuggestionsSet), -1, true)
+                        .setPositiveButton(android.R.string.ok, (dialog1, which, inputText, isChecked) ->
+                                handleNewFilterText(inputText == null ? "" : inputText.toString(), logFilterAdapter))
+                        .setNegativeButton(R.string.cancel, null)
+                        .show())
+                .setEndIconContentDescription(R.string.add_filter_ellipsis);
+        AlertDialog alertDialog = new MaterialAlertDialogBuilder(this)
+                .setCustomTitle(builder.build())
+                .setView(recyclerView)
                 .setNegativeButton(R.string.ok, null)
                 .show();
 
-        logFilterAdapter.setOnItemClickListener((parent, view1, position, logFilter) -> {
+        logFilterAdapter.setOnItemClickListener((v, position, logFilter) -> {
             setSearchQuery(logFilter.name);
             alertDialog.dismiss();
         });
     }
 
-    protected void handleNewFilterText(String text, final LogFilterAdapter logFilterAdapter) {
+    protected void handleNewFilterText(@NonNull String text, final LogFilterAdapter logFilterAdapter) {
         final String trimmed = text.trim();
         if (!TextUtils.isEmpty(trimmed)) {
             mExecutor.submit(() -> {
                 LogFilterDao dao = AppsDb.getInstance().logFilterDao();
                 long id = dao.insert(trimmed);
                 LogFilter logFilter = dao.get(id);
+                if (logFilter == null) {
+                    return;
+                }
                 ThreadUtils.postOnMainThread(() -> {
-                    if (logFilter != null) {
-                        logFilterAdapter.add(logFilter);
-                        logFilterAdapter.sort(LogFilter.COMPARATOR);
-                        logFilterAdapter.notifyDataSetChanged();
-
-                        addToAutocompleteSuggestions(trimmed);
-                    }
+                    logFilterAdapter.add(logFilter);
+                    addToAutocompleteSuggestions(trimmed);
                 });
             });
         }
@@ -589,28 +611,29 @@ public class LogViewerActivity extends BaseActivity implements SearchView.OnQuer
 
     private void resetFilter() {
         mViewModel.setLogLevel(Prefs.LogViewer.getLogLevel());
-        search(mSearchQuery);
+        search(mSearchCriteria);
     }
 
     private void setSearchQuery(String text) {
         // Sets the search text without invoking autosuggestions, which are really only useful when typing
         mDynamicallyEnteringSearchQuery = true;
-        search(text);
+        search(new SearchCriteria(text));
         mSearchView.setIconified(false);
-        mSearchView.setQuery(mSearchQuery, true);
+        mSearchView.setQuery(mSearchCriteria != null ? mSearchCriteria.query : null, true);
         mSearchView.clearFocus();
     }
 
-    String getSearchQuery() {
-        return mSearchQuery;
+    @Nullable
+    SearchCriteria getSearchQuery() {
+        return mSearchCriteria;
     }
 
-    void search(String filterText) {
+    void search(@Nullable SearchCriteria searchCriteria) {
         if (mSearchingInterface != null) {
-            mSearchingInterface.onQuery(filterText);
+            mSearchingInterface.onQuery(searchCriteria);
         }
-        mSearchQuery = filterText;
-        if (!TextUtils.isEmpty(mSearchQuery)) {
+        mSearchCriteria = searchCriteria;
+        if (mSearchCriteria == null || !TextUtils.isEmpty(mSearchCriteria.query)) {
             mDynamicallyEnteringSearchQuery = true;
         }
     }
@@ -618,7 +641,7 @@ public class LogViewerActivity extends BaseActivity implements SearchView.OnQuer
     private void addToAutocompleteSuggestions(String trimmed) {
         if (mSearchSuggestionsSet.size() < MAX_NUM_SUGGESTIONS && !mSearchSuggestionsSet.contains(trimmed)) {
             mSearchSuggestionsSet.add(trimmed);
-            populateSuggestionsAdapter(mSearchQuery);
+            populateSuggestionsAdapter(mSearchCriteria != null ? mSearchCriteria.query : null);
         }
     }
 }

@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.content.pm.ConfigurationInfo;
 import android.content.pm.FeatureInfo;
 import android.content.pm.PackageInfo;
+import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.SpannableStringBuilder;
@@ -33,7 +34,6 @@ import androidx.core.content.pm.PackageInfoCompat;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.chip.Chip;
-import com.google.android.material.divider.MaterialDivider;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -52,8 +52,8 @@ import io.github.muntashirakon.AppManager.utils.PackageUtils;
 import io.github.muntashirakon.AppManager.utils.ThreadUtils;
 import io.github.muntashirakon.AppManager.utils.UIUtils;
 import io.github.muntashirakon.AppManager.utils.Utils;
-import io.github.muntashirakon.AppManager.utils.appearance.ColorCodes;
 import io.github.muntashirakon.io.Paths;
+import io.github.muntashirakon.util.AdapterUtils;
 import io.github.muntashirakon.util.LocalizedString;
 import io.github.muntashirakon.view.ProgressIndicatorCompat;
 import io.github.muntashirakon.widget.RecyclerView;
@@ -103,17 +103,18 @@ public class AppDetailsOtherFragment extends AppDetailsFragment {
     }
 
     @Override
-    public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
+    public void onCreateMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
         inflater.inflate(R.menu.fragment_app_details_refresh_actions, menu);
     }
 
     @Override
-    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+    public boolean onMenuItemSelected(@NonNull MenuItem item) {
         int id = item.getItemId();
         if (id == R.id.action_refresh_details) {
             refreshDetails();
-        } else return super.onOptionsItemSelected(item);
-        return true;
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -162,39 +163,20 @@ public class AppDetailsOtherFragment extends AppDetailsFragment {
         private final List<AppDetailsItem<?>> mAdapterList;
         @OtherProperty
         private int mRequestedProperty;
-        private final int mCardColor0;
-        private final int mCardColor1;
-        private final int mDefaultIndicatorColor;
 
         AppDetailsRecyclerAdapter() {
             mAdapterList = new ArrayList<>();
-            mCardColor0 = ColorCodes.getListItemColor0(activity);
-            mCardColor1 = ColorCodes.getListItemColor1(activity);
-            mDefaultIndicatorColor = ColorCodes.getListItemDefaultIndicatorColor(activity);
         }
 
         @UiThread
         void setDefaultList(@NonNull List<AppDetailsItem<?>> list) {
             ThreadUtils.postOnBackgroundThread(() -> {
                 mRequestedProperty = mNeededProperty;
-                int previousSize = mAdapterList.size();
-                synchronized (mAdapterList) {
-                    mAdapterList.clear();
-                    mAdapterList.addAll(list);
-                }
-                int currentSize = mAdapterList.size();
                 ThreadUtils.postOnMainThread(() -> {
                     if (isDetached()) return;
                     ProgressIndicatorCompat.setVisibility(progressIndicator, false);
                     synchronized (mAdapterList) {
-                        if (previousSize != 0) {
-                            notifyItemRangeChanged(0, previousSize);
-                        }
-                        if (previousSize < currentSize) {
-                            notifyItemRangeInserted(previousSize, currentSize - previousSize);
-                        } else if (previousSize > currentSize) {
-                            notifyItemRangeRemoved(currentSize, previousSize - currentSize);
-                        }
+                        AdapterUtils.notifyDataSetChanged(this, mAdapterList, list);
                     }
                 });
             });
@@ -205,17 +187,18 @@ public class AppDetailsOtherFragment extends AppDetailsFragment {
          * the same holder for any kind of view, and view are not all sames.
          */
         class ViewHolder extends RecyclerView.ViewHolder {
+            MaterialCardView itemView;
             TextView textView1;
             TextView textView2;
             TextView textView3;
             TextView textView4;
             TextView textView5;
             MaterialButton launchBtn;
-            MaterialDivider divider;
             Chip chipType;
 
             public ViewHolder(@NonNull View itemView) {
                 super(itemView);
+                this.itemView = (MaterialCardView) itemView;
                 switch (mRequestedProperty) {
                     case FEATURES:
                         textView1 = itemView.findViewById(R.id.name);
@@ -232,7 +215,6 @@ public class AppDetailsOtherFragment extends AppDetailsFragment {
                         textView1 = itemView.findViewById(R.id.item_title);
                         textView2 = itemView.findViewById(R.id.item_subtitle);
                         launchBtn = itemView.findViewById(R.id.item_open);
-                        divider = itemView.findViewById(R.id.divider);
                         chipType = itemView.findViewById(R.id.lib_type);
                         textView1.setTextIsSelectable(true);
                         textView2.setTextIsSelectable(true);
@@ -311,7 +293,7 @@ public class AppDetailsOtherFragment extends AppDetailsFragment {
             holder.chipType.setText(item.type);
             switch (item.type) {
                 case "APK": {
-                    PackageInfo packageInfo = (PackageInfo) item.mainItem;
+                    PackageInfo packageInfo = (PackageInfo) item.item;
                     StringBuilder sb = new StringBuilder()
                             .append(packageInfo.packageName)
                             .append("\n");
@@ -338,7 +320,7 @@ public class AppDetailsOtherFragment extends AppDetailsFragment {
                 case "SO": {
                     if (item.path == null) {
                         // Native lib
-                        holder.textView2.setText(((LocalizedString) item.mainItem).toLocalizedString(context));
+                        holder.textView2.setText(((LocalizedString) item.item).toLocalizedString(context));
                         holder.launchBtn.setVisibility(View.GONE);
                         break;
                     } // else shared lib, fallthrough
@@ -353,24 +335,23 @@ public class AppDetailsOtherFragment extends AppDetailsFragment {
                     break;
                 }
             }
-            holder.divider.setDividerColor(mDefaultIndicatorColor);
-            ((MaterialCardView) holder.itemView).setCardBackgroundColor(mCardColor1);
+            holder.itemView.setStrokeColor(Color.TRANSPARENT);
         }
 
         private void getFeaturesView(@NonNull Context context, @NonNull ViewHolder holder, int index) {
-            MaterialCardView view = (MaterialCardView) holder.itemView;
+            MaterialCardView view = holder.itemView;
             final AppDetailsFeatureItem item;
             synchronized (mAdapterList) {
                 item = (AppDetailsFeatureItem) mAdapterList.get(index);
             }
-            FeatureInfo featureInfo = item.mainItem;
+            FeatureInfo featureInfo = item.item;
             // Set background
             if (item.required && !item.available) {
-                view.setCardBackgroundColor(ContextCompat.getColor(context, io.github.muntashirakon.ui.R.color.red));
+                view.setStrokeColor(ContextCompat.getColor(context, io.github.muntashirakon.ui.R.color.red));
             } else if (!item.available) {
-                view.setCardBackgroundColor(ContextCompat.getColor(context, io.github.muntashirakon.ui.R.color.disabled_user));
+                view.setStrokeColor(ContextCompat.getColor(context, io.github.muntashirakon.ui.R.color.disabled_user));
             } else {
-                view.setCardBackgroundColor(index % 2 == 0 ? mCardColor1 : mCardColor0);
+                view.setStrokeColor(Color.TRANSPARENT);
             }
             // Set feature name
             if (featureInfo.name == null) {
@@ -393,12 +374,12 @@ public class AppDetailsOtherFragment extends AppDetailsFragment {
         }
 
         private void getConfigurationView(@NonNull ViewHolder holder, int index) {
-            MaterialCardView view = (MaterialCardView) holder.itemView;
+            MaterialCardView view = holder.itemView;
             final ConfigurationInfo configurationInfo;
             synchronized (mAdapterList) {
-                configurationInfo = (ConfigurationInfo) mAdapterList.get(index).mainItem;
+                configurationInfo = (ConfigurationInfo) mAdapterList.get(index).item;
             }
-            view.setCardBackgroundColor(index % 2 == 0 ? mCardColor1 : mCardColor0);
+            view.setStrokeColor(Color.TRANSPARENT);
             // GL ES version
             holder.textView1.setText(String.format(Locale.ROOT, "%s %s",
                     getString(R.string.gles_version), Utils.getGlEsVersion(configurationInfo.reqGlEsVersion)));
@@ -419,7 +400,7 @@ public class AppDetailsOtherFragment extends AppDetailsFragment {
             synchronized (mAdapterList) {
                 item = mAdapterList.get(index);
             }
-            final X509Certificate signature = (X509Certificate) item.mainItem;
+            final X509Certificate signature = (X509Certificate) item.item;
             final SpannableStringBuilder builder = new SpannableStringBuilder();
             if (index == 0) {
                 // Display verifier info
@@ -434,7 +415,7 @@ public class AppDetailsOtherFragment extends AppDetailsFragment {
             }
             textView.setText(builder);
             textView.setTextIsSelectable(true);
-            ((MaterialCardView) holder.itemView).setCardBackgroundColor(index % 2 == 0 ? mCardColor1 : mCardColor0);
+            holder.itemView.setStrokeColor(Color.TRANSPARENT);
         }
     }
 }

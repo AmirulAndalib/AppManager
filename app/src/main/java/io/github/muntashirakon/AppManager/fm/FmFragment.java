@@ -24,6 +24,7 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -32,7 +33,6 @@ import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.WorkerThread;
-import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.LinearLayoutCompat;
 import androidx.appcompat.widget.SearchView;
@@ -40,7 +40,9 @@ import androidx.collection.ArrayMap;
 import androidx.core.content.ContextCompat;
 import androidx.core.os.BundleCompat;
 import androidx.core.provider.DocumentsContractCompat;
+import androidx.core.view.MenuProvider;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
@@ -58,6 +60,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -88,8 +91,9 @@ import io.github.muntashirakon.widget.MultiSelectionView;
 import io.github.muntashirakon.widget.RecyclerView;
 import io.github.muntashirakon.widget.SwipeRefreshLayout;
 
-public class FmFragment extends Fragment implements SearchView.OnQueryTextListener, SwipeRefreshLayout.OnRefreshListener,
-        SpeedDialView.OnActionSelectedListener, MultiSelectionActionsView.OnItemSelectedListener {
+public class FmFragment extends Fragment implements MenuProvider, SearchView.OnQueryTextListener,
+        SwipeRefreshLayout.OnRefreshListener, SpeedDialView.OnActionSelectedListener,
+        MultiSelectionActionsView.OnItemSelectedListener {
     public static final String TAG = FmFragment.class.getSimpleName();
 
     public static final String ARG_URI = "uri";
@@ -126,11 +130,27 @@ public class FmFragment extends Fragment implements SearchView.OnQueryTextListen
     private SwipeRefreshLayout mSwipeRefresh;
     @Nullable
     private MultiSelectionView mMultiSelectionView;
+    private FloatingActionButtonGroup mFabGroup;
     private FmPathListAdapter mPathListAdapter;
     private FmActivity mActivity;
 
     @Nullable
     private FolderShortInfo mFolderShortInfo;
+
+    private final ViewTreeObserver.OnGlobalLayoutListener mMultiSelectionViewChangeListener = () -> {
+        if (mFabGroup != null) {
+            int defaultMargin = UiUtils.dpToPx(requireContext(), 16);
+            int newMargin;
+            if (mMultiSelectionView.getVisibility() == View.VISIBLE) {
+                newMargin = defaultMargin + mMultiSelectionView.getHeight();
+            } else newMargin = defaultMargin;
+            ViewGroup.MarginLayoutParams marginLayoutParams = (ViewGroup.MarginLayoutParams) mFabGroup.getLayoutParams();
+            if (marginLayoutParams.bottomMargin != newMargin) {
+                marginLayoutParams.bottomMargin = newMargin;
+                mFabGroup.setLayoutParams(marginLayoutParams);
+            }
+        }
+    };
 
     private final OnBackPressedCallback mBackPressedCallback = new OnBackPressedCallback(true) {
         @Override
@@ -151,7 +171,6 @@ public class FmFragment extends Fragment implements SearchView.OnQueryTextListen
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setHasOptionsMenu(true);
         mModel = new ViewModelProvider(this).get(FmViewModel.class);
     }
 
@@ -182,10 +201,9 @@ public class FmFragment extends Fragment implements SearchView.OnQueryTextListen
             }
         }
         mActivity = (FmActivity) requireActivity();
-        // Set title and subtitle
-        ActionBar actionBar = mActivity.getSupportActionBar();
         mSwipeRefresh = view.findViewById(R.id.swipe_refresh);
         mSwipeRefresh.setOnRefreshListener(this);
+        UiUtils.applyWindowInsetsAsPadding(view.findViewById(R.id.path_container), false, true);
         RecyclerView pathListView = view.findViewById(R.id.path_list);
         pathListView.setLayoutManager(new LinearLayoutManager(mActivity, RecyclerView.HORIZONTAL, false));
         mPathListAdapter = new FmPathListAdapter(mModel);
@@ -217,20 +235,25 @@ public class FmFragment extends Fragment implements SearchView.OnQueryTextListen
                     .setNegativeButton(R.string.close, null)
                     .show();
         });
-        FloatingActionButtonGroup fabGroup = view.findViewById(R.id.fab);
-        fabGroup.inflate(R.menu.fragment_fm_speed_dial);
-        fabGroup.setOnActionSelectedListener(this);
+        mFabGroup = view.findViewById(R.id.fab);
+        mFabGroup.inflate(R.menu.fragment_fm_speed_dial);
+        mFabGroup.setOnActionSelectedListener(this);
         UiUtils.applyWindowInsetsAsMargin(view.findViewById(R.id.fab_holder));
         mEmptyView = view.findViewById(android.R.id.empty);
         mEmptyViewIcon = view.findViewById(R.id.icon);
         mEmptyViewTitle = view.findViewById(R.id.title);
         mEmptyViewDetails = view.findViewById(R.id.message);
         mRecyclerView = view.findViewById(R.id.list_item);
-        mRecyclerView.setLayoutManager(new LinearLayoutManager(mActivity));
+        mRecyclerView.setLayoutManager(UIUtils.getGridLayoutAt450Dp(mActivity));
         mAdapter = new FmAdapter(mModel, mActivity);
-        mAdapter.registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
+        mAdapter.registerAdapterDataObserver(new RecyclerView.AdapterDataChangedObserver() {
             @Override
             public void onChanged() {
+                if (mAdapter.isInSelectionMode()) {
+                    // Avoid setting a selection in selection mode (directory cannot be changed
+                    // in selection mode anyway).
+                    return;
+                }
                 if (scrollPosition.get() != RecyclerView.NO_POSITION) {
                     // Update scroll position
                     mRecyclerView.setSelection(scrollPosition.get());
@@ -247,10 +270,10 @@ public class FmFragment extends Fragment implements SearchView.OnQueryTextListen
                 if (mFolderShortInfo == null) {
                     return;
                 }
-                if (dy < 0 && mFolderShortInfo.canWrite && !fabGroup.isShown()) {
-                    fabGroup.show();
-                } else if (dy > 0 && fabGroup.isShown()) {
-                    fabGroup.hide();
+                if (dy < 0 && mFolderShortInfo.canWrite && !mFabGroup.isShown()) {
+                    mFabGroup.show();
+                } else if (dy > 0 && mFabGroup.isShown()) {
+                    mFabGroup.hide();
                 }
             }
         });
@@ -258,8 +281,10 @@ public class FmFragment extends Fragment implements SearchView.OnQueryTextListen
         mMultiSelectionView.setOnItemSelectedListener(this);
         mMultiSelectionView.setAdapter(mAdapter);
         mMultiSelectionView.updateCounter(true);
+        mMultiSelectionView.getViewTreeObserver().addOnGlobalLayoutListener(mMultiSelectionViewChangeListener);
         BatchOpsHandler batchOpsHandler = new BatchOpsHandler(mMultiSelectionView);
         mMultiSelectionView.setOnSelectionChangeListener(batchOpsHandler);
+        mActivity.addMenuProvider(this, getViewLifecycleOwner(), Lifecycle.State.RESUMED);
         // Set observer
         mModel.getLastUriLiveData().observe(getViewLifecycleOwner(), uri1 -> {
             // force disable empty view
@@ -267,9 +292,8 @@ public class FmFragment extends Fragment implements SearchView.OnQueryTextListen
                 mEmptyView.setVisibility(View.GONE);
             }
             // Reset subtitle
-            if (actionBar != null) {
-                actionBar.setSubtitle(R.string.loading);
-            }
+            Optional.ofNullable(mActivity.getSupportActionBar()).ifPresent(actionBar ->
+                    actionBar.setSubtitle(R.string.loading));
             if (uri1 == null) {
                 return;
             }
@@ -302,13 +326,13 @@ public class FmFragment extends Fragment implements SearchView.OnQueryTextListen
         mModel.getUriLiveData().observe(getViewLifecycleOwner(), uri1 -> {
             FmActivity.Options options1 = mModel.getOptions();
             String alternativeRootName = options1.isVfs ? options1.uri.getLastPathSegment() : null;
-            if (actionBar != null) {
+            Optional.ofNullable(mActivity.getSupportActionBar()).ifPresent(actionBar -> {
                 String title = uri1.getLastPathSegment();
                 if (TextUtils.isEmpty(title)) {
                     title = alternativeRootName != null ? alternativeRootName : "Root";
                 }
                 actionBar.setTitle(title);
-            }
+            });
             if (mSwipeRefresh != null) {
                 mSwipeRefresh.setRefreshing(true);
             }
@@ -317,9 +341,6 @@ public class FmFragment extends Fragment implements SearchView.OnQueryTextListen
         });
         mModel.getFolderShortInfoLiveData().observe(getViewLifecycleOwner(), folderShortInfo -> {
             mFolderShortInfo = folderShortInfo;
-            if (actionBar == null) {
-                return;
-            }
             StringBuilder subtitle = new StringBuilder();
             // 1. Size
             if (folderShortInfo.size > 0) {
@@ -352,15 +373,17 @@ public class FmFragment extends Fragment implements SearchView.OnQueryTextListen
                 }
             }
             if (!folderShortInfo.canWrite) {
-                if (fabGroup.isShown()) {
-                    fabGroup.hide();
+                if (mFabGroup.isShown()) {
+                    mFabGroup.hide();
                 }
             } else {
-                if (!fabGroup.isShown()) {
-                    fabGroup.show();
+                if (!mFabGroup.isShown()) {
+                    mFabGroup.show();
                 }
             }
-            actionBar.setSubtitle(subtitle);
+            Optional.ofNullable(mActivity.getSupportActionBar()).ifPresent(actionBar ->
+                    actionBar.setSubtitle(subtitle)
+            );
         });
         mModel.getDisplayPropertiesLiveData().observe(getViewLifecycleOwner(), uri1 -> {
             FilePropertiesDialogFragment dialogFragment = FilePropertiesDialogFragment.getInstance(uri1);
@@ -389,11 +412,16 @@ public class FmFragment extends Fragment implements SearchView.OnQueryTextListen
     public void onStop() {
         super.onStop();
         if (mModel != null && mRecyclerView != null) {
-            View v = mRecyclerView.getChildAt(0);
-            if (v != null) {
-                Prefs.FileManager.setLastOpenedPath(mModel.getOptions(), mModel.getCurrentUri(), mRecyclerView.getChildAdapterPosition(v));
-            }
+            Prefs.FileManager.setLastOpenedPath(mModel.getOptions(), mModel.getCurrentUri(), getRecyclerViewFirstChildPosition());
         }
+    }
+
+    @Override
+    public void onDestroyView() {
+        if (mMultiSelectionView != null) {
+            mMultiSelectionView.getViewTreeObserver().removeOnGlobalLayoutListener(mMultiSelectionViewChangeListener);
+        }
+        super.onDestroyView();
     }
 
     @Override
@@ -418,12 +446,12 @@ public class FmFragment extends Fragment implements SearchView.OnQueryTextListen
     }
 
     @Override
-    public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
+    public void onCreateMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
         inflater.inflate(R.menu.activity_fm_actions, menu);
     }
 
     @Override
-    public void onPrepareOptionsMenu(@NonNull Menu menu) {
+    public void onPrepareMenu(@NonNull Menu menu) {
         MenuItem pasteMenu = menu.findItem(R.id.action_paste);
         if (pasteMenu != null) {
             FmTasks.FmTask fmTask = FmTasks.getInstance().peek();
@@ -432,7 +460,7 @@ public class FmFragment extends Fragment implements SearchView.OnQueryTextListen
     }
 
     @Override
-    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+    public boolean onMenuItemSelected(@NonNull MenuItem item) {
         int id = item.getItemId();
         if (id == R.id.action_refresh) {
             mModel.reload();
@@ -446,7 +474,7 @@ public class FmFragment extends Fragment implements SearchView.OnQueryTextListen
         } else if (id == R.id.action_storage) {
             ThreadUtils.postOnBackgroundThread(() -> {
                 ArrayMap<String, Uri> storageLocations = StorageUtils.getAllStorageLocations(mActivity);
-                if (storageLocations.size() == 0) {
+                if (storageLocations.isEmpty()) {
                     mActivity.runOnUiThread(() -> {
                         if (isDetached()) return;
                         new MaterialAlertDialogBuilder(mActivity)
@@ -501,7 +529,7 @@ public class FmFragment extends Fragment implements SearchView.OnQueryTextListen
             startActivity(intent);
             return true;
         }
-        return super.onOptionsItemSelected(item);
+        return false;
     }
 
     @Override
@@ -533,7 +561,7 @@ public class FmFragment extends Fragment implements SearchView.OnQueryTextListen
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
         int id = item.getItemId();
         List<Path> selectedFiles = mModel.getSelectedItems();
-        if (selectedFiles.size() == 0) {
+        if (selectedFiles.isEmpty()) {
             // Do nothing on empty list
             return false;
         }
@@ -582,6 +610,14 @@ public class FmFragment extends Fragment implements SearchView.OnQueryTextListen
     @Override
     public void onRefresh() {
         if (mModel != null) mModel.reload();
+    }
+
+    public int getRecyclerViewFirstChildPosition() {
+        if (mRecyclerView != null) {
+            View v = mRecyclerView.getChildAt(0);
+            return mRecyclerView.getChildAdapterPosition(v);
+        }
+        return RecyclerView.NO_POSITION;
     }
 
     private void goToRawPath(@NonNull String p) {

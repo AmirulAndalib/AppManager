@@ -57,6 +57,8 @@ import java.util.Locale;
 import io.github.muntashirakon.AppManager.R;
 import io.github.muntashirakon.AppManager.misc.AdvancedSearchView;
 import io.github.muntashirakon.dialog.DialogTitleBuilder;
+import io.github.muntashirakon.util.UiUtils;
+import io.github.muntashirakon.view.AutoFitGridLayoutManager;
 import io.github.muntashirakon.widget.SearchView;
 
 public class UIUtils {
@@ -289,6 +291,16 @@ public class UIUtils {
     }
 
     @UiThread
+    public static void displayShortToast(CharSequence message) {
+        Toast.makeText(ContextUtils.getContext(), message, Toast.LENGTH_SHORT).show();
+    }
+
+    @UiThread
+    public static void displayShortToast(String format, Object... args) {
+        Toast.makeText(ContextUtils.getContext(), String.format(Locale.getDefault(), format, args), Toast.LENGTH_SHORT).show();
+    }
+
+    @UiThread
     public static void displayShortToast(@StringRes int res) {
         Toast.makeText(ContextUtils.getContext(), res, Toast.LENGTH_SHORT).show();
     }
@@ -302,6 +314,13 @@ public class UIUtils {
     @UiThread
     public static void displayLongToast(CharSequence message) {
         Toast.makeText(ContextUtils.getContext(), message, Toast.LENGTH_LONG).show();
+    }
+
+
+    @UiThread
+    public static void displayLongToast(String format, Object... args) {
+        Toast.makeText(ContextUtils.getContext(), String.format(Locale.getDefault(), format, args),
+                Toast.LENGTH_LONG).show();
     }
 
     @UiThread
@@ -319,6 +338,11 @@ public class UIUtils {
     public static void displayLongToastPl(@PluralsRes int res, int count, Object... args) {
         Context appContext = ContextUtils.getContext();
         Toast.makeText(appContext, appContext.getResources().getQuantityString(res, count, args), Toast.LENGTH_LONG).show();
+    }
+
+    @NonNull
+    public static AutoFitGridLayoutManager getGridLayoutAt450Dp(@NonNull Context context) {
+        return new AutoFitGridLayoutManager(context, UiUtils.dpToPx(context, 450));
     }
 
     @NonNull
